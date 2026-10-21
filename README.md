@@ -26,7 +26,7 @@ flowchart LR
         D["NODE 3 — Detector (laptop)"]
     end
     subgraph CLOUD["CLOUD"]
-        M["MQTT Broker<br/>TLS :8883 · WSS :8084"]
+        M["MQTT Broker publik<br/>broker.hivemq.com<br/>TLS :8883 · WSS :8884"]
     end
     W["Dashboard web (browser)"]
     E1 -->|"telemetry"| M
@@ -44,7 +44,7 @@ flowchart LR
 | 2 sensor | Accelerometer + gyroscope di setiap HP |
 | 2 data processing | RMS percepatan + integrasi rotasi ([LEARNING.md](docs/LEARNING.md)) |
 | Algoritma | Rule-based sensor fusion: bandingkan gerakan dua edge |
-| Protokol & cloud | MQTT over TLS ke broker cloud (EMQX), MQTT over WebSocket untuk dashboard |
+| Protokol & cloud | MQTT over TLS ke broker cloud (HiveMQ public broker), MQTT over WebSocket untuk dashboard |
 | Satu jaringan | Kedua HP (dan laptop detector) di Wi-Fi/hotspot yang sama |
 
 ## Struktur folder
@@ -84,10 +84,10 @@ Hasil yang diharapkan: `NORMAL` → `ALERT` → `COMMON_MOTION` → `NORMAL`. In
 
 ## 2. Jalankan dengan broker cloud (simulator di laptop)
 
-Siapkan broker sesuai [docs/SETUP.md](docs/SETUP.md), lalu:
+Broker default adalah **broker publik HiveMQ** (tanpa daftar akun). Cukup:
 
 ```bash
-cp .env.example .env      # isi MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD, PROJECT_ID
+cp .env.example .env      # ganti PROJECT_ID dengan nama unik kelompokmu
 ```
 
 Buka 3 terminal:
@@ -115,7 +115,7 @@ Untuk memenuhi syarat 2 edge fisik, jalankan Edge 1 dan Edge 2 di **dua HP terpi
 
 1. [ARCHITECTURE.md](docs/ARCHITECTURE.md) — node, alur data, diagram.
 2. [LEARNING.md](docs/LEARNING.md) — sensor, RMS, integrasi rotasi, algoritma.
-3. [SETUP.md](docs/SETUP.md) — broker cloud, `.env`, topic MQTT.
+3. [SETUP.md](docs/SETUP.md) — broker, `.env`, topic MQTT.
 4. [ANDROID.md](docs/ANDROID.md) — Termux & Termux:API di 2 HP.
 5. [DASHBOARD.md](docs/DASHBOARD.md) — dashboard web lewat MQTT over WebSocket.
 6. [SECURITY.md](docs/SECURITY.md) — TLS, ACL, lab replay.

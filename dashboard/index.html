@@ -67,10 +67,10 @@
   <details class="card" id="settings" open>
     <summary>Koneksi broker (MQTT over WebSocket)</summary>
     <p class="muted">Browser tidak bisa memakai MQTT TCP port 8883, jadi dashboard memakai <b>WebSocket over TLS</b>.
-      EMQX Cloud biasanya <code>wss://HOST:8084/mqtt</code>, HiveMQ Cloud <code>wss://HOST:8884/mqtt</code>.
+      Broker publik HiveMQ: <code>wss://broker.hivemq.com:8884/mqtt</code>, username dan password dikosongkan.
       Password tidak disimpan.</p>
     <form id="conn-form">
-      <label>WebSocket URL <input id="url" placeholder="wss://xxxx.emqxsl.com:8084/mqtt" required></label>
+      <label>WebSocket URL <input id="url" value="wss://broker.hivemq.com:8884/mqtt" required></label>
       <label>PROJECT_ID (sama dengan .env) <input id="project" placeholder="kelas_iot_kelompok_07" required></label>
       <label>Username <input id="username" autocomplete="username"></label>
       <label>Password <input id="password" type="password" autocomplete="current-password"></label>

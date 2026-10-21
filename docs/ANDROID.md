@@ -31,7 +31,7 @@ cd contoh-project-iot1
 cp .env.example .env
 ```
 
-Edit `.env` pada kedua HP dengan broker cloud dan `PROJECT_ID` yang sama. Gunakan kredensial berbeda per HP dan topic ACL bila ingin menguji keamanan akses MQTT.
+Edit `.env` pada kedua HP: cukup ganti `PROJECT_ID` dengan nama unik kelompok (harus sama di semua perangkat). Broker publik HiveMQ sudah menjadi default, tanpa username/password.
 
 **Kedua HP harus berada pada Wi-Fi/hotspot yang sama dan terhubung ke internet.**
 

@@ -10,7 +10,7 @@ flowchart TB
     DET["Detector Service: Python"]
   end
   subgraph BROKER["Cloud"]
-    MQTT["EMQX MQTT Broker (TLS: 8883)"]
+    MQTT["HiveMQ Public Broker (TLS: 8883)"]
   end
   E1 -->|"accelerometer + gyroscope -> RMS & rotasi -> JSON publish"| MQTT
   E2 -->|"accelerometer + gyroscope -> RMS & rotasi -> JSON publish"| MQTT
@@ -28,7 +28,7 @@ flowchart TB
 sequenceDiagram
   participant A as Node 1: Protected HP
   participant B as Node 2: Owner HP
-  participant M as EMQX Cloud
+  participant M as HiveMQ Broker
   participant D as Node 3: Detector
   participant W as Dashboard web
   D->>M: SUBSCRIBE pocketguard/<project>/edge/+/telemetry
@@ -52,7 +52,7 @@ sequenceDiagram
 | Edge 2 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 2, getar + notifikasi saat alert | `nodes/edge2_guardian/main.py`, `shared/alarm.py` |
 | Detector service | Both MQTT topics | Pair latest readings + detection rule | MQTT alert + status | `nodes/detector_service/` |
 | Dashboard web | Telemetry, status, alerts | Menampilkan data & grafik | MQTT control (ARM/DISARM) | `dashboard/index.html` |
-| EMQX Cloud | MQTT packets | Routes publish to subscribers | MQTT packets | External managed broker |
+| HiveMQ public broker | MQTT packets | Routes publish to subscribers | MQTT packets | External public broker (cloud) |
 | Monitor (optional) | Alert MQTT topic | Prints events | Terminal log | `nodes/monitor/main.py` |
 
 **Interpretasi syarat satu network:** kedua edge pada hotspot/Wi-Fi yang sama. Cloud broker memang berada di luar LAN dan diakses via internet. Detector pada setup dasar berada di laptop, bukan VM cloud; bisa dipindahkan ke cloud jika perlu.

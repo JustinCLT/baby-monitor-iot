@@ -40,7 +40,7 @@ def main():
         result = detector.accept(edge1, now_ms=now_ms)
         print(f"{index + 1}. {title}\n   -> {result.status}: {result.reason}\n")
 
-    print("Offline demo done. Next: set up EMQX Cloud to fulfill the MQTT requirement.")
+    print("Offline demo done. Next: run the nodes with the MQTT broker (see docs/SETUP.md).")
 
 
 if __name__ == "__main__":
