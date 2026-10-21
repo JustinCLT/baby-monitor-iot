@@ -51,6 +51,9 @@ flowchart LR
 
 ```text
 contoh-project-iot1/
+├── hp_dijaga.py                     Jalankan di HP A (yang dijaga)
+├── hp_pemilik.py                    Jalankan di HP B (pemilik)
+├── detector.py                      Jalankan di laptop
 ├── nodes/
 │   ├── edge1_protected/main.py      NODE 1: HP yang dijaga
 │   ├── edge2_guardian/main.py       NODE 2: HP pemilik (alarm getar + notifikasi)
@@ -93,9 +96,9 @@ cp .env.example .env      # ganti PROJECT_ID dengan nama unik kelompokmu
 Buka 3 terminal:
 
 ```bash
-python -m nodes.detector_service.main                                       # NODE 3
-python -m nodes.edge2_guardian.main --source simulator --scenario still     # NODE 2
-python -m nodes.edge1_protected.main --source simulator --scenario pickup   # NODE 1
+python detector.py                       # laptop
+python hp_pemilik.py                     # HP B (di laptop: simulasi diam)
+python hp_dijaga.py --scenario pickup    # HP A (di laptop: simulasi diangkat)
 ```
 
 Lalu buka `dashboard/index.html` di browser ([DASHBOARD.md](docs/DASHBOARD.md)).
@@ -109,7 +112,7 @@ python -m scripts.send_control ARM
 
 ## 3. Jalankan di 2 HP Android sungguhan
 
-Untuk memenuhi syarat 2 edge fisik, jalankan Edge 1 dan Edge 2 di **dua HP terpisah** dengan `--source android`. Langkah lengkapnya ada di [docs/ANDROID.md](docs/ANDROID.md).
+Untuk memenuhi syarat 2 edge fisik, jalankan `python hp_dijaga.py` dan `python hp_pemilik.py` di **dua HP terpisah**. Di Termux, sensor HP dipakai otomatis. Langkah lengkapnya ada di [docs/ANDROID.md](docs/ANDROID.md).
 
 ## Dokumentasi
 

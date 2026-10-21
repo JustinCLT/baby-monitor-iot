@@ -40,19 +40,19 @@ Edit `.env` pada kedua HP: cukup ganti `PROJECT_ID` dengan nama unik kelompok (h
 Di **HP A (dijaga)**:
 
 ```bash
-python -m nodes.edge1_protected.main --source android --interval 0.5
+python hp_dijaga.py
 ```
 
 Di **HP B (pemilik)**:
 
 ```bash
-python -m nodes.edge2_guardian.main --source android --interval 0.5
+python hp_pemilik.py
 ```
 
 Di **laptop** jalankan detector:
 
 ```bash
-python -m nodes.detector_service.main
+python detector.py
 ```
 
 Ketika HP A bergerak dan HP B diam, HP B menerima alert MQTT: **bergetar** (`termux-vibrate`) dan menampilkan **notifikasi Android** (`termux-notification`), selain mencetak pesan di terminal.
