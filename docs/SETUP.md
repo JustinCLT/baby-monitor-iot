@@ -50,19 +50,19 @@ MQTT_PASSWORD=
 Pertama jalankan detector:
 
 ```bash
-python -m nodes.detector_service.main
+python detector.py
 ```
 
 Lalu Edge 2 (HP pemilik / simulator):
 
 ```bash
-python -m nodes.edge2_guardian.main --source simulator --scenario still
+python hp_pemilik.py
 ```
 
 Lalu Edge 1 (HP dijaga / simulator):
 
 ```bash
-python -m nodes.edge1_protected.main --source simulator --scenario pickup
+python hp_dijaga.py --scenario pickup
 ```
 
 Tunggu beberapa detik. Detector menerima dua telemetry, menghitung alert, lalu mengirim pesan ke Edge 2 via cloud broker.

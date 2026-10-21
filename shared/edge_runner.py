@@ -7,6 +7,7 @@ Edge 2 also passes `on_alert`, so it subscribes to the alerts topic.
 """
 
 import argparse
+import shutil
 import json
 import time
 import uuid
@@ -22,12 +23,18 @@ AlertHandler = Callable[[dict], None]
 
 def _parse_args(device_id: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=f"PocketGuard {device_id}")
-    parser.add_argument("--source", choices=["simulator", "android"], default="simulator")
+    parser.add_argument("--source", choices=["auto", "simulator", "android"], default="auto",
+                        help="auto = sensor HP jika di Termux, simulator jika di laptop")
     parser.add_argument("--scenario", choices=["still", "pickup", "table_shake"], default="still",
                         help="Only used by --source simulator")
-    parser.add_argument("--interval", type=float, default=0.35, help="Approximate sample interval (seconds)")
+    parser.add_argument("--interval", type=float, default=None,
+                        help="Approximate sample interval in seconds (default 0.5 on Android, 0.35 simulator)")
     parser.add_argument("--samples", type=int, default=5, help="Samples per processing window")
     args = parser.parse_args()
+    if args.source == "auto":
+        args.source = "android" if shutil.which("termux-sensor") else "simulator"
+    if args.interval is None:
+        args.interval = 0.5 if args.source == "android" else 0.35
     if args.interval <= 0 or args.samples < 2:
         parser.error("--interval must be positive and --samples >= 2")
     return args
