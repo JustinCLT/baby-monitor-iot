@@ -15,7 +15,7 @@ flowchart LR
     DET["NODE 3 - Python Detector Service"]
   end
   subgraph CLOUD["CLOUD"]
-    MQTT["EMQX MQTT Broker: TLS/8883"]
+    MQTT["HiveMQ Public Broker: TLS/8883"]
   end
   PUB1 -->|"Publish JSON Telemetry"| MQTT
   PUB2 -->|"Publish JSON Telemetry"| MQTT

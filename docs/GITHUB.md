@@ -21,6 +21,6 @@ Buat branch kecil per fitur, lalu ajukan pull request dengan penjelasan percobaa
 
 ## Keamanan
 
-File `.env` berisi kredensial dan **tidak boleh di-commit**. Hanya unggah `.env.example` yang berisi placeholder. Tidak perlu membuka broker kelas sebagai broker publik.
+File `.env` bisa berisi kredensial (jika memakai broker pribadi) dan **tidak boleh di-commit**. Hanya unggah `.env.example` yang berisi placeholder. Tidak perlu membuka broker kelas sebagai broker publik.
 
 GitHub Actions di `.github/workflows/test.yml` mencoba menjalankan unit test pada setiap push atau pull request (bila Actions diaktifkan).

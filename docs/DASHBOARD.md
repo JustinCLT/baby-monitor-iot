@@ -17,19 +17,19 @@ Browser tidak bisa membuka koneksi TCP biasa ke port MQTT `8883`. Karena itu bro
 
 | Client | Protokol | Contoh alamat |
 |---|---|---|
-| Edge 1, Edge 2, detector (Python) | MQTT over TLS | `xxxx.emqxsl.com:8883` |
-| Dashboard (browser) | MQTT over WebSocket + TLS | `wss://xxxx.emqxsl.com:8084/mqtt` |
+| Edge 1, Edge 2, detector (Python) | MQTT over TLS | `broker.hivemq.com:8883` |
+| Dashboard (browser) | MQTT over WebSocket + TLS | `wss://broker.hivemq.com:8884/mqtt` |
 
-Port WebSocket umumnya `8084` di EMQX Cloud dan `8884` di HiveMQ Cloud, dengan path `/mqtt`. **Cek halaman koneksi (Overview) di konsol broker kalian**, karena nilainya bisa berbeda.
+Untuk broker publik HiveMQ, alamatnya sudah terisi otomatis. Jika memakai broker pribadi, cek port WebSocket TLS dan path di konsol broker (misalnya EMQX Cloud memakai `8084` dan path `/mqtt`).
 
 ## Cara membuka
 
 1. Jalankan detector dan kedua edge seperti biasa (lihat [SETUP.md](SETUP.md)).
 2. Buka `dashboard/index.html` dengan Chrome/Firefox (klik dua kali file-nya sudah cukup).
 3. Isi:
-   - **WebSocket URL**: `wss://HOST:8084/mqtt`
+   - **WebSocket URL**: `wss://broker.hivemq.com:8884/mqtt` (sudah terisi)
    - **PROJECT_ID**: sama persis dengan `.env`
-   - **Username / Password** broker
+   - **Username / Password**: kosongkan untuk broker publik
 4. Klik **Hubungkan**.
 
 URL, PROJECT_ID, dan username diingat browser. **Password tidak disimpan.**

@@ -1,19 +1,27 @@
-# Setup MQTT Cloud (EMQX)
+# Setup MQTT Broker
+
+Contoh ini memakai **broker publik HiveMQ** (`broker.hivemq.com`): gratis, **tanpa daftar akun**, dan berada di internet (cloud). Cukup isi `PROJECT_ID` yang unik.
 
 ## Yang dibutuhkan
 
 - Laptop dengan Python 3.10+ dan akses internet.
-- Akun EMQX Cloud / broker MQTT cloud lain dengan koneksi MQTT TLS.
 - Untuk memenuhi tugas fisik: 2 HP Android dengan sensor accelerometer dan gyro, berada pada Wi-Fi/hotspot yang sama.
 
-## 1. Siapkan broker
+## 1. Broker yang dipakai
 
-1. Buka https://www.emqx.com/en/cloud dan buat deployment sesuai opsi yang tersedia pada akun.
-2. Di konsol broker, buat username dan password MQTT untuk praktikum.
-3. Catat **hostname** MQTT dan port TLS (biasanya `8883`, periksa halaman koneksi deployment).
-4. Untuk demo awal gunakan satu akun kelas. Untuk pengujian **security**, buat akun terpisah per edge dan atur **topic authorization / ACL** sehingga tiap edge hanya bisa publish pada topiknya sendiri.
+| Pengaturan | Nilai |
+|---|---|
+| Host | `broker.hivemq.com` |
+| MQTT over TLS (Python) | port `8883` |
+| MQTT over WebSocket TLS (dashboard) | `wss://broker.hivemq.com:8884/mqtt` |
+| Username / password | tidak perlu |
 
-**Jangan commit kredensial ke GitHub!** File `.env` sudah ada dalam `.gitignore`.
+**Penting:** broker publik dipakai bersama semua orang. Siapa pun yang tahu topic kalian bisa membaca dan mengirim pesan. Karena itu:
+
+- pakai `PROJECT_ID` yang unik (misalnya nama kelas + nomor kelompok),
+- jangan kirim data pribadi atau rahasia.
+
+Ingin broker pribadi dengan username/password dan ACL? Pakai layanan seperti EMQX Cloud atau HiveMQ Cloud, lalu isi `MQTT_HOST`, `MQTT_USERNAME`, dan `MQTT_PASSWORD` di `.env`. Kode tidak perlu diubah.
 
 ## 2. Konfigurasi dan install
 
@@ -24,18 +32,18 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Isi `.env` dengan hostname dan username/password asli. `PROJECT_ID` harus unik agar tidak tercampur dengan kelompok lain:
+Di `.env`, cukup ganti `PROJECT_ID` dengan nama unik kelompokmu:
 
 ```env
 PROJECT_ID=kelas_iot_kelompok_07
-MQTT_HOST=xxxxxxxx.emqxsl.com
+MQTT_HOST=broker.hivemq.com
 MQTT_PORT=8883
 MQTT_TLS=true
-MQTT_USERNAME=your_broker_username
-MQTT_PASSWORD=your_broker_password
+MQTT_USERNAME=
+MQTT_PASSWORD=
 ```
 
-**MQTT_TLS=true** mengaktifkan verifikasi sertifikat broker. Jangan matikan TLS untuk koneksi cloud. Penggunaan broker publik `1883` tanpa autentikasi tidak cocok untuk proyek keamanan.
+`PROJECT_ID` harus **sama** di HP A, HP B, laptop, dan dashboard. `MQTT_TLS=true` mengenkripsi koneksi; jangan dimatikan.
 
 ## 3. Jalankan 3 node pada 3 terminal
 
@@ -84,17 +92,18 @@ python -m scripts.send_control DISARM
 python -m scripts.send_control ARM
 ```
 
-Bisa juga lewat tombol ARM/DISARM di dashboard. Perintah ini berupa payload teks `ARM` atau `DISARM` pada topik `/control`. **Broker ACL harus membatasi siapa yang boleh mengirim control.** Ini contoh sederhana untuk pembelajaran, belum protokol control otentikasi end-to-end yang siap produksi.
+Bisa juga lewat tombol ARM/DISARM di dashboard. Perintah ini berupa payload teks `ARM` atau `DISARM` pada topik `/control`. Di broker publik siapa pun bisa mengirim ke topic ini; di broker pribadi, **ACL harus membatasi siapa yang boleh mengirim control**. Ini contoh sederhana untuk pembelajaran, belum protokol control otentikasi end-to-end yang siap produksi.
 
 ## 6. Troubleshooting
 
 | Gejala | Kemungkinan penyebab |
 |---|---|
-| `Configure MQTT_HOST` | Belum isi `.env` |
-| `not authorized` / gagal connect | Username/password salah atau ACL menolak |
+| Warning `PROJECT_ID masih 'kelas_iot_demo'` | Belum mengganti `PROJECT_ID` di `.env` |
+| Gagal connect / timeout | Tidak ada internet, atau jaringan memblokir port 8883 (coba hotspot HP) |
+| `not authorized` | Username/password salah (hanya untuk broker pribadi) |
 | `certificate verify failed` | Host TLS atau sertifikat salah |
 | Telemetry terlihat, alert tidak keluar | Dua edge belum berjalan, scenario belum aktif, atau sensor kurang bergerak |
-| Edge tidak menerima alarm | Periksa subscription ke topik `alerts` dan authorization subscribe |
+| Edge tidak menerima alarm | `PROJECT_ID` berbeda antarperangkat, atau Edge 2 belum berjalan |
 | `REJECTED_STALE` | Jam kedua perangkat tidak sinkron, atau pesan tertunda >30 detik |
 
 Untuk demo awal tanpa broker gunakan `python -m scripts.offline_demo`.

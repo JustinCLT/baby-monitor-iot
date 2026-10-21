@@ -7,7 +7,7 @@
 | Risiko | Implementasi | Keterbatasan |
 |---|---|---|
 | Penyadapan data di jalur komunikasi | MQTT over TLS + verifikasi sertifikat | Broker masih dapat membaca pesan |
-| Publish topic tanpa izin | Broker ACL, diatur manual di EMQX | Tidak otomatis aktif dari script |
+| Publish topic tanpa izin | Broker ACL di broker pribadi | Broker publik tidak punya ACL: siapa pun bisa publish |
 | Replay telemetry | `boot_id`, `sequence`, jendela timestamp | Bisa dilewati penyerang dengan kredensial penuh |
 | Payload rusak | JSON parsing dan validasi tipe serta angka finite | Tidak mendeteksi semua nilai palsu |
 | Sensor spoofing | Bandingkan dua edge | Tidak membuktikan keaslian sensor |
@@ -23,6 +23,8 @@ python -m scripts.replay_test
 Dua pesan identik dikirim ke topik Edge 1. Detector akan mencetak `REJECTED_REPLAY` untuk pesan kedua. Ini pemeriksaan level aplikasi, **bukan serangan yang membobol TLS**.
 
 ## 3. Lab B: broker authorization
+
+**Lab ini membutuhkan broker pribadi** (misalnya EMQX Cloud atau HiveMQ Cloud). Broker publik HiveMQ yang dipakai secara default tidak punya akun maupun ACL, jadi siapa pun bisa membaca dan mengirim ke topic kalian.
 
 Buat identitas berbeda dan ACL per role:
 

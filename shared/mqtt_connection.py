@@ -8,9 +8,13 @@ import paho.mqtt.client as mqtt
 
 load_dotenv()
 
+# Default: HiveMQ public broker. No account needed; anyone can read public topics.
+DEFAULT_HOST = "broker.hivemq.com"
+DEFAULT_PROJECT_ID = "kelas_iot_demo"
+
 
 def project_id() -> str:
-    value = os.getenv("PROJECT_ID", "kelas_iot_demo")
+    value = os.getenv("PROJECT_ID", DEFAULT_PROJECT_ID)
     if not value.replace("_", "").replace("-", "").isalnum():
         raise ValueError("PROJECT_ID may only contain letters, numbers, - and _")
     return value
@@ -23,9 +27,9 @@ def topic(suffix: str) -> str:
 def create_client(role: str, will: tuple[str, str] | None = None) -> mqtt.Client:
     """Connect to the broker from .env. `will` = (topic, payload) the broker
     publishes (retained) if this client disconnects unexpectedly."""
-    host = os.getenv("MQTT_HOST")
-    if not host or host == "YOUR_EMQX_HOST":
-        raise RuntimeError("Configure MQTT_HOST in .env first. See docs/SETUP.md")
+    host = os.getenv("MQTT_HOST") or DEFAULT_HOST
+    if project_id() == DEFAULT_PROJECT_ID:
+        print(f"[MQTT] Warning: PROJECT_ID masih '{DEFAULT_PROJECT_ID}'. Ganti di .env agar topic tidak bercampur dengan kelompok lain.")
 
     client = mqtt.Client(
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
