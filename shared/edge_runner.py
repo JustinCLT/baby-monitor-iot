@@ -1,36 +1,61 @@
-"""Common edge loop. Only the ROLE differs between Edge 1 and Edge 2."""
+"""Common edge loop used by BOTH edge devices.
+
+sensor -> 2 data processing -> JSON telemetry -> MQTT publish
+
+Edge 1 and Edge 2 run exactly the same loop. The only difference is that
+Edge 2 also passes `on_alert`, so it subscribes to the alerts topic.
+"""
 
 import argparse
+import json
 import time
 import uuid
+from collections.abc import Callable
 
 from shared.messages import Telemetry
 from shared.mqtt_connection import create_client, topic
 from shared.processing import extract_features
 from shared.sensors import select_source
 
+AlertHandler = Callable[[dict], None]
 
-def run_edge(device_id: str):
+
+def _parse_args(device_id: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=f"PocketGuard {device_id}")
     parser.add_argument("--source", choices=["simulator", "android"], default="simulator")
-    parser.add_argument("--scenario", choices=["still", "pickup", "table_shake"], default="still")
+    parser.add_argument("--scenario", choices=["still", "pickup", "table_shake"], default="still",
+                        help="Only used by --source simulator")
     parser.add_argument("--interval", type=float, default=0.35, help="Approximate sample interval (seconds)")
     parser.add_argument("--samples", type=int, default=5, help="Samples per processing window")
     args = parser.parse_args()
     if args.interval <= 0 or args.samples < 2:
         parser.error("--interval must be positive and --samples >= 2")
+    return args
 
+
+def run_edge(device_id: str, on_alert: AlertHandler | None = None):
+    args = _parse_args(device_id)
+    label = device_id.upper()
     source = select_source(args.source, args.scenario)
     client = create_client(device_id)
 
-    if device_id == "edge2":
+    if on_alert is not None:
         def on_connect(client, userdata, flags, reason_code, properties):
-            if not reason_code.is_failure:
-                client.subscribe(topic("alerts"), qos=1)
-                print("[EDGE 2 | OWNER] Subscribed to alerts")
+            if reason_code.is_failure:
+                print(f"[{label}] MQTT connection rejected: {reason_code}")
+                return
+            client.subscribe(topic("alerts"), qos=1)
+            print(f"[{label}] Subscribed to {topic('alerts')}")
 
         def on_message(client, userdata, message):
-            print(f"\n[EDGE 2 | OWNER ALARM] {message.payload.decode(errors='replace')}\n")
+            try:
+                alert = json.loads(message.payload)
+                if not isinstance(alert, dict):
+                    raise ValueError("alert must be a JSON object")
+            except ValueError:
+                print(f"[{label}] Ignored malformed alert: {message.payload[:200]!r}")
+                return
+            on_alert(alert)
 
         client.on_connect = on_connect
         client.on_message = on_message
@@ -38,8 +63,9 @@ def run_edge(device_id: str):
     client.loop_start()
     boot_id = uuid.uuid4().hex
     sequence = 0
-    print(f"[{device_id.upper()}] Source: {args.source} / scenario: {args.scenario}")
-    print(f"[{device_id.upper()}] Publishes to: {topic(f'edge/{device_id}/telemetry')}")
+    telemetry_topic = topic(f"edge/{device_id}/telemetry")
+    print(f"[{label}] Source: {args.source} / scenario: {args.scenario}")
+    print(f"[{label}] Publishes to: {telemetry_topic}")
 
     try:
         while True:
@@ -49,12 +75,12 @@ def run_edge(device_id: str):
                 time.sleep(args.interval)
             features = extract_features(samples)
             telemetry = Telemetry.make(device_id, boot_id, sequence, features.motion_rms, features.rotation_rad)
-            info = client.publish(topic(f"edge/{device_id}/telemetry"), telemetry.to_json(), qos=1)
+            info = client.publish(telemetry_topic, telemetry.to_json(), qos=1)
             info.wait_for_publish(timeout=10)
-            print(f"[{device_id.upper()}] #{sequence} motion={features.motion_rms:.3f} m/s² | rotation={features.rotation_rad:.3f} rad")
+            print(f"[{label}] #{sequence} motion={features.motion_rms:.3f} m/s² | rotation={features.rotation_rad:.3f} rad")
             sequence += 1
     except KeyboardInterrupt:
-        print(f"[{device_id.upper()}] Stopped")
+        print(f"[{label}] Stopped")
     finally:
         client.loop_stop()
         client.disconnect()

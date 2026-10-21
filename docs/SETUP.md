@@ -59,6 +59,8 @@ python -m nodes.edge1_protected.main --source simulator --scenario pickup
 
 Tunggu beberapa detik. Detector menerima dua telemetry, menghitung alert, lalu mengirim pesan ke Edge 2 via cloud broker.
 
+Opsional: buka `dashboard/index.html` untuk melihat semuanya secara visual ([DASHBOARD.md](DASHBOARD.md)).
+
 Untuk tes menggunakan perangkat fisik Android, baca [ANDROID.md](ANDROID.md).
 
 ## 4. Topic MQTT dan arah data
@@ -67,8 +69,11 @@ Untuk tes menggunakan perangkat fisik Android, baca [ANDROID.md](ANDROID.md).
 pocketguard/<PROJECT_ID>/edge/edge1/telemetry     # Edge 1 --> broker --> detector
 pocketguard/<PROJECT_ID>/edge/edge2/telemetry     # Edge 2 --> broker --> detector
 pocketguard/<PROJECT_ID>/control                  # Owner --> broker --> detector
-pocketguard/<PROJECT_ID>/alerts                   # Detector --> broker --> Edge 2
+pocketguard/<PROJECT_ID>/alerts                   # Detector --> broker --> Edge 2 + dashboard
+pocketguard/<PROJECT_ID>/status                   # Detector --> broker --> dashboard (retained)
 ```
+
+Dashboard web memakai topic yang sama lewat **MQTT over WebSocket**. Lihat [DASHBOARD.md](DASHBOARD.md).
 
 Topik subscribe milik detector: `pocketguard/<PROJECT_ID>/edge/+/telemetry`. Simbol `+` adalah MQTT wildcard untuk **satu** level topik.
 
@@ -79,7 +84,7 @@ python -m scripts.send_control DISARM
 python -m scripts.send_control ARM
 ```
 
-Perintah ini berupa payload teks `ARM` atau `DISARM` pada topik `/control`. **Broker ACL harus membatasi siapa yang boleh mengirim control.** Ini contoh sederhana untuk pembelajaran, belum protokol control otentikasi end-to-end yang siap produksi.
+Bisa juga lewat tombol ARM/DISARM di dashboard. Perintah ini berupa payload teks `ARM` atau `DISARM` pada topik `/control`. **Broker ACL harus membatasi siapa yang boleh mengirim control.** Ini contoh sederhana untuk pembelajaran, belum protokol control otentikasi end-to-end yang siap produksi.
 
 ## 6. Troubleshooting
 

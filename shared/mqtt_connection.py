@@ -20,7 +20,9 @@ def topic(suffix: str) -> str:
     return f"pocketguard/{project_id()}/{suffix}"
 
 
-def create_client(role: str) -> mqtt.Client:
+def create_client(role: str, will: tuple[str, str] | None = None) -> mqtt.Client:
+    """Connect to the broker from .env. `will` = (topic, payload) the broker
+    publishes (retained) if this client disconnects unexpectedly."""
     host = os.getenv("MQTT_HOST")
     if not host or host == "YOUR_EMQX_HOST":
         raise RuntimeError("Configure MQTT_HOST in .env first. See docs/SETUP.md")
@@ -41,6 +43,9 @@ def create_client(role: str) -> mqtt.Client:
     else:
         if os.getenv("ALLOW_INSECURE_LOCAL") != "true":
             raise RuntimeError("TLS disabled. Only allow this for local development via ALLOW_INSECURE_LOCAL=true")
+
+    if will is not None:
+        client.will_set(will[0], will[1], qos=1, retain=True)
 
     port = int(os.getenv("MQTT_PORT", "8883" if use_tls else "1883"))
     client.connect(host, port, keepalive=30)

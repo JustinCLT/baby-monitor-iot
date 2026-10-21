@@ -33,7 +33,14 @@ edge2    subscribe pocketguard/<PROJECT_ID>/alerts
 detector subscribe pocketguard/<PROJECT_ID>/edge/+/telemetry
 detector publish   pocketguard/<PROJECT_ID>/alerts
 owner    publish   pocketguard/<PROJECT_ID>/control
+dashboard subscribe pocketguard/<PROJECT_ID>/edge/+/telemetry
+dashboard subscribe pocketguard/<PROJECT_ID>/status
+dashboard subscribe pocketguard/<PROJECT_ID>/alerts
+dashboard publish   pocketguard/<PROJECT_ID>/control
+detector publish   pocketguard/<PROJECT_ID>/status
 ```
+
+Dashboard menyimpan password di memori browser selama dibuka, jadi beri akun dashboard hak sekecil mungkin.
 
 Dengan akun pengujian kalian sendiri, coba publish ke topic yang tidak diizinkan dan amati apakah broker menolaknya. Pastikan kebijakan default ACL tidak `allow all`.
 

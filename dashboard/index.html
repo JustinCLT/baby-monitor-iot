@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PocketGuard Dashboard</title>
+<!-- MQTT.js: client MQTT di browser lewat WebSocket (wss://) -->
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f0; --card: #fdfcf9; --line: #e2e0d8; --text: #1b2630; --muted: #5f6b75;
+    --edge1: #2f6fb3; --edge2: #c2621a; --threshold: #8a939b;
+    --ok: #1f7a4d; --ok-bg: #dff1e6; --bad: #b3261e; --bad-bg: #fbe2df;
+    --warn: #8a5a00; --warn-bg: #fbefd2; --info: #245a93; --info-bg: #e3ecf6;
+    --off: #4a5560; --off-bg: #eceae2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1b24; --card: #172833; --line: #2a4050; --text: #e8ecea; --muted: #9fb0bc;
+      --edge1: #6fa8e6; --edge2: #f29a4a; --threshold: #7d8b96;
+      --ok: #7fd3a5; --ok-bg: #173a2a; --bad: #ff9a90; --bad-bg: #4a1f1c;
+      --warn: #f3c86b; --warn-bg: #3d2f12; --info: #9cc3ef; --info-bg: #1b3350;
+      --off: #b8c4cc; --off-bg: #22323d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 24px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+  .ok { color: var(--ok); background: var(--ok-bg); } .bad { color: var(--bad); background: var(--bad-bg); }
+  .warn { color: var(--warn); background: var(--warn-bg); } .info { color: var(--info); background: var(--info-bg); }
+  .off { color: var(--off); background: var(--off-bg); }
+  form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+  label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+  input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 100%; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--bg); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--edge1); border-color: var(--edge1); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #status-text { font-size: 32px; font-weight: 700; margin: 4px 0; padding: 4px 16px; border-radius: 10px; display: inline-block; }
+  .muted { color: var(--muted); font-size: 14px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  canvas { width: 100%; height: 240px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  details summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>PocketGuard Dashboard</h1>
+    <span id="conn" class="pill off" role="status">Belum terhubung</span>
+  </header>
+
+  <details class="card" id="settings" open>
+    <summary>Koneksi broker (MQTT over WebSocket)</summary>
+    <p class="muted">Browser tidak bisa memakai MQTT TCP port 8883, jadi dashboard memakai <b>WebSocket over TLS</b>.
+      EMQX Cloud biasanya <code>wss://HOST:8084/mqtt</code>, HiveMQ Cloud <code>wss://HOST:8884/mqtt</code>.
+      Password tidak disimpan.</p>
+    <form id="conn-form">
+      <label>WebSocket URL <input id="url" placeholder="wss://xxxx.emqxsl.com:8084/mqtt" required></label>
+      <label>PROJECT_ID (sama dengan .env) <input id="project" placeholder="kelas_iot_kelompok_07" required></label>
+      <label>Username <input id="username" autocomplete="username"></label>
+      <label>Password <input id="password" type="password" autocomplete="current-password"></label>
+      <div class="row">
+        <button class="primary" id="connect-btn" type="submit">Hubungkan</button>
+        <button id="disconnect-btn" type="button" disabled>Putuskan</button>
+      </div>
+    </form>
+  </details>
+
+  <section class="card" aria-labelledby="h-status">
+    <h2 id="h-status">Status detector</h2>
+    <div id="status-text" class="off">—</div>
+    <p id="status-reason" class="muted">Menunggu pesan dari topic status…</p>
+    <div class="row">
+      <span id="armed" class="pill off">ARM: ?</span>
+      <button id="arm-btn" type="button" disabled>ARM</button>
+      <button id="disarm-btn" type="button" disabled>DISARM</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-edge1">
+      <h2 id="h-edge1">Edge 1 · HP dijaga</h2>
+      <span id="edge1-state" class="pill off">Belum ada data</span>
+      <dl>
+        <dt>Getaran (RMS)</dt><dd id="edge1-motion">—</dd>
+        <dt>Rotasi</dt><dd id="edge1-rotation">—</dd>
+        <dt>Pesan #</dt><dd id="edge1-seq">—</dd>
+        <dt>Terakhir</dt><dd id="edge1-seen">—</dd>
+      </dl>
+    </section>
+    <section class="card" aria-labelledby="h-edge2">
+      <h2 id="h-edge2">Edge 2 · HP pemilik</h2>
+      <span id="edge2-state" class="pill off">Belum ada data</span>
+      <dl>
+        <dt>Getaran (RMS)</dt><dd id="edge2-motion">—</dd>
+        <dt>Rotasi</dt><dd id="edge2-rotation">—</dd>
+        <dt>Pesan #</dt><dd id="edge2-seq">—</dd>
+        <dt>Terakhir</dt><dd id="edge2-seen">—</dd>
+      </dl>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="h-chart">
+    <h2 id="h-chart">Getaran (motion RMS, m/s²) — 60 pesan terakhir</h2>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--edge1)"></span>Edge 1 (dijaga)</span>
+      <span><span class="swatch" style="background:var(--edge2)"></span>Edge 2 (pemilik)</span>
+      <span><span class="swatch" style="background:var(--threshold)"></span>Ambang bergerak (0,7)</span>
+    </div>
+    <canvas id="chart" role="img" aria-label="Grafik garis getaran Edge 1 dan Edge 2"></canvas>
+  </section>
+
+  <section class="card" aria-labelledby="h-alerts">
+    <h2 id="h-alerts">Riwayat alert</h2>
+    <table>
+      <thead><tr><th>Waktu</th><th>Risk</th><th>Alasan</th></tr></thead>
+      <tbody id="alerts"><tr><td colspan="3" class="muted">Belum ada alert.</td></tr></tbody>
+    </table>
+  </section>
+
+  <p class="muted" id="topics"></p>
+</main>
+
+<script>
+"use strict";
+// Sama dengan nodes/detector_service/rules.py
+const MOTION_THRESHOLD = 0.7;
+const ROTATION_THRESHOLD = 0.25;
+const OFFLINE_AFTER_MS = 10000;
+const MAX_POINTS = 60;
+const STATUS_CLASS = {
+  ALERT: "bad", NORMAL: "ok", ARMED: "ok", COMMON_MOTION: "warn", REFERENCE_OLD: "warn",
+  REJECTED_REPLAY: "warn", REJECTED_STALE: "warn", WAITING: "info", ONLINE: "info",
+  DISARMED: "off", OFFLINE: "off",
+};
+
+const $ = (id) => document.getElementById(id);
+let client = null;
+let base = "";
+const edges = { edge1: null, edge2: null };
+const series = { edge1: [], edge2: [] };
+const alerts = [];
+
+function setPill(el, text, cls) { el.textContent = text; el.className = el.className.replace(/\b(ok|bad|warn|info|off)\b/g, "").trim() + " " + cls; }
+function fmt(n, digits = 3) { return typeof n === "number" && isFinite(n) ? n.toFixed(digits) : "—"; }
+function clock(ms) { return new Date(ms).toLocaleTimeString("id-ID"); }
+
+// ---------- simpan pengaturan (tanpa password) ----------
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("pocketguard-dashboard") || "{}");
+    for (const key of ["url", "project", "username"]) if (saved[key]) $(key).value = saved[key];
+  } catch (e) { /* localStorage tidak tersedia: abaikan */ }
+}
+function saveSettings() {
+  try {
+    localStorage.setItem("pocketguard-dashboard", JSON.stringify({
+      url: $("url").value.trim(), project: $("project").value.trim(), username: $("username").value.trim(),
+    }));
+  } catch (e) { /* abaikan */ }
+}
+
+// ---------- MQTT ----------
+function connect(event) {
+  event.preventDefault();
+  const url = $("url").value.trim();
+  const project = $("project").value.trim();
+  if (!/^wss?:\/\//.test(url)) { setPill($("conn"), "URL harus diawali wss://", "bad"); return; }
+  if (!/^[A-Za-z0-9_-]+$/.test(project)) { setPill($("conn"), "PROJECT_ID tidak valid", "bad"); return; }
+  if (typeof mqtt === "undefined") { setPill($("conn"), "Library MQTT.js gagal dimuat (cek internet)", "bad"); return; }
+  saveSettings();
+  if (client) client.end(true);
+
+  base = `pocketguard/${project}`;
+  $("topics").textContent = `Subscribe: ${base}/edge/+/telemetry · ${base}/status · ${base}/alerts — Publish: ${base}/control`;
+  setPill($("conn"), "Menghubungkan…", "info");
+
+  client = mqtt.connect(url, {
+    username: $("username").value.trim() || undefined,
+    password: $("password").value || undefined,
+    clientId: `${project}-dashboard-${Math.random().toString(16).slice(2, 10)}`,
+    protocolVersion: 4,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+  });
+
+  client.on("connect", () => {
+    setPill($("conn"), "Terhubung", "ok");
+    client.subscribe([`${base}/edge/+/telemetry`, `${base}/status`, `${base}/alerts`], { qos: 1 });
+    $("settings").open = false;
+    setButtons(true);
+  });
+  client.on("reconnect", () => setPill($("conn"), "Menyambung ulang…", "warn"));
+  client.on("offline", () => { setPill($("conn"), "Terputus", "off"); setButtons(false); });
+  client.on("error", (err) => setPill($("conn"), `Error: ${err.message}`, "bad"));
+  client.on("message", onMessage);
+}
+
+function disconnect() {
+  if (client) client.end(true);
+  client = null;
+  setPill($("conn"), "Belum terhubung", "off");
+  setButtons(false);
+  $("settings").open = true;
+}
+
+function setButtons(connected) {
+  $("disconnect-btn").disabled = !connected;
+  $("arm-btn").disabled = !connected;
+  $("disarm-btn").disabled = !connected;
+}
+
+function sendControl(command) {
+  if (client && client.connected) client.publish(`${base}/control`, command, { qos: 1 });
+}
+
+function onMessage(topic, payload) {
+  let data;
+  try { data = JSON.parse(payload.toString()); } catch (e) { return; }
+  if (!data || typeof data !== "object") return;
+
+  if (topic === `${base}/status`) return renderStatus(data);
+  if (topic === `${base}/alerts`) return addAlert(data);
+  const match = topic.match(/\/edge\/(edge1|edge2)\/telemetry$/);
+  if (match && data.device_id === match[1]) updateEdge(match[1], data);
+}
+
+// ---------- tampilan ----------
+function renderStatus(data) {
+  const status = String(data.status || "?");
+  const el = $("status-text");
+  el.textContent = status;
+  el.className = STATUS_CLASS[status] || "info";
+  const when = typeof data.at_ms === "number" ? ` (${clock(data.at_ms)})` : "";
+  $("status-reason").textContent = String(data.reason || "") + when;
+  setPill($("armed"), data.armed ? "ARM: aktif" : "ARM: mati", data.armed ? "ok" : "off");
+}
+
+function updateEdge(id, data) {
+  const motion = Number(data.motion_rms), rotation = Number(data.rotation_rad);
+  edges[id] = { motion, rotation, seq: data.sequence, receivedAt: Date.now() };
+  $(`${id}-motion`).textContent = `${fmt(motion)} m/s²`;
+  $(`${id}-rotation`).textContent = `${fmt(rotation)} rad`;
+  $(`${id}-seq`).textContent = String(data.sequence ?? "—");
+  const moving = motion >= MOTION_THRESHOLD || rotation >= ROTATION_THRESHOLD;
+  setPill($(`${id}-state`), moving ? "Bergerak" : "Diam", moving ? "warn" : "ok");
+
+  series[id].push(motion);
+  if (series[id].length > MAX_POINTS) series[id].shift();
+  drawChart();
+}
+
+function addAlert(data) {
+  alerts.unshift({ at: Date.now(), score: data.risk_score, reason: String(data.reason || "") });
+  alerts.length = Math.min(alerts.length, 20);
+  const body = $("alerts");
+  body.replaceChildren(...alerts.map((a) => {
+    const tr = document.createElement("tr");
+    for (const text of [clock(a.at), fmt(Number(a.score), 2), a.reason]) {
+      const td = document.createElement("td"); td.textContent = text; tr.appendChild(td);
+    }
+    return tr;
+  }));
+}
+
+function tick() {
+  for (const id of ["edge1", "edge2"]) {
+    const edge = edges[id];
+    if (!edge) continue;
+    const age = Date.now() - edge.receivedAt;
+    $(`${id}-seen`).textContent = `${Math.round(age / 1000)} detik lalu`;
+    if (age > OFFLINE_AFTER_MS) setPill($(`${id}-state`), "Offline (tidak ada data)", "off");
+  }
+}
+
+function drawChart() {
+  const canvas = $("chart");
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  canvas.width = width * ratio; canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+
+  const pad = { left: 40, right: 8, top: 8, bottom: 20 };
+  const all = [...series.edge1, ...series.edge2, MOTION_THRESHOLD];
+  const maxY = Math.max(1.5, Math.ceil(Math.max(...all) * 1.15 / 0.5) * 0.5);
+  const x = (i) => pad.left + (i / (MAX_POINTS - 1)) * (width - pad.left - pad.right);
+  const y = (v) => pad.top + (1 - v / maxY) * (height - pad.top - pad.bottom);
+
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillStyle = color("--muted");
+  ctx.strokeStyle = color("--line");
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const v = (maxY / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y(v)); ctx.lineTo(width - pad.right, y(v)); ctx.stroke();
+    ctx.fillText(v.toFixed(1), 4, y(v) + 4);
+  }
+
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = color("--threshold");
+  ctx.beginPath(); ctx.moveTo(pad.left, y(MOTION_THRESHOLD)); ctx.lineTo(width - pad.right, y(MOTION_THRESHOLD)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  for (const [id, name] of [["edge1", "--edge1"], ["edge2", "--edge2"]]) {
+    const points = series[id];
+    if (points.length === 0) continue;
+    const offset = MAX_POINTS - points.length;
+    ctx.strokeStyle = color(name);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    points.forEach((v, i) => (i === 0 ? ctx.moveTo(x(offset + i), y(v)) : ctx.lineTo(x(offset + i), y(v))));
+    ctx.stroke();
+  }
+}
+
+$("conn-form").addEventListener("submit", connect);
+$("disconnect-btn").addEventListener("click", disconnect);
+$("arm-btn").addEventListener("click", () => sendControl("ARM"));
+$("disarm-btn").addEventListener("click", () => sendControl("DISARM"));
+window.addEventListener("resize", drawChart);
+loadSettings();
+drawChart();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

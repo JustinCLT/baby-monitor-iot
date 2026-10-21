@@ -55,7 +55,9 @@ Di **laptop** jalankan detector:
 python -m nodes.detector_service.main
 ```
 
-Ketika HP A bergerak dan HP B diam, HP B menerima pesan MQTT alert yang dicetak di terminal Termux; **belum berupa notifikasi Android di notification shade**.
+Ketika HP A bergerak dan HP B diam, HP B menerima alert MQTT: **bergetar** (`termux-vibrate`) dan menampilkan **notifikasi Android** (`termux-notification`), selain mencetak pesan di terminal.
+
+Mau melihat semuanya sekaligus? Buka dashboard web di laptop: [DASHBOARD.md](DASHBOARD.md).
 
 ## Catatan teknis
 

@@ -22,3 +22,5 @@ flowchart LR
   MQTT -->|"Subscribe edge/+/telemetry"| DET
   DET -->|"Publish alerts"| MQTT
   MQTT -->|"Subscribe alerts"| PUB2
+  DET -->|"Publish status (retained)"| MQTT
+  MQTT <-->|"MQTT over WebSocket"| WEB["Dashboard web (browser)"]
