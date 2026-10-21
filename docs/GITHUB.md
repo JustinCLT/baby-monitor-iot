@@ -15,7 +15,7 @@ python -m unittest discover -s tests -v
 
 1. **Anggota Edge** mengerjakan `nodes/edge1_protected/`, `nodes/edge2_guardian/`, dan `shared/sensors.py`.
 2. **Anggota Algoritma** mengerjakan `shared/processing.py`, `nodes/detector_service/rules.py`, serta pengujian.
-3. **Anggota Cloud** mengerjakan broker, MQTT, ACL, `shared/mqtt_connection.py`, serta dokumentasi.
+3. **Anggota Cloud** mengerjakan broker, MQTT, ACL, `shared/mqtt_connection.py`, dashboard (`dashboard/index.html`), serta dokumentasi.
 
 Buat branch kecil per fitur, lalu ajukan pull request dengan penjelasan percobaan.
 

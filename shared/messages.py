@@ -45,3 +45,18 @@ class Telemetry:
     @staticmethod
     def make(device_id: str, boot_id: str, sequence: int, motion_rms: float, rotation_rad: float) -> "Telemetry":
         return Telemetry(device_id, boot_id, sequence, int(time.time() * 1000), motion_rms, rotation_rad)
+
+
+def status_json(status: str, reason: str, armed: bool, score: float = 0.0,
+                device_id: str | None = None, sequence: int | None = None,
+                now_ms: int | None = None) -> str:
+    """Latest detector decision, published (retained) for the dashboard."""
+    return json.dumps({
+        "status": status,
+        "reason": reason,
+        "armed": armed,
+        "risk_score": score,
+        "device_id": device_id,
+        "sequence": sequence,
+        "at_ms": now_ms if now_ms is not None else int(time.time() * 1000),
+    })

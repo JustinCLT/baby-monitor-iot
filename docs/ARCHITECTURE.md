@@ -18,6 +18,8 @@ flowchart TB
   DET -->|"bandingkan data + tentukan status"| DET
   DET -->|"MQTT publish: alerts"| MQTT
   MQTT -->|"MQTT subscribe: alerts"| E2
+  DET -->|"MQTT publish: status (retained)"| MQTT
+  MQTT <-->|"MQTT over WebSocket"| WEB["Dashboard web"]
 ```
 
 ## Sequence ketika HP diangkat
@@ -28,6 +30,7 @@ sequenceDiagram
   participant B as Node 2: Owner HP
   participant M as EMQX Cloud
   participant D as Node 3: Detector
+  participant W as Dashboard web
   D->>M: SUBSCRIBE pocketguard/<project>/edge/+/telemetry
   B->>M: SUBSCRIBE pocketguard/<project>/alerts
   B->>M: PUBLISH edge/edge2/telemetry (still)
@@ -36,7 +39,9 @@ sequenceDiagram
   D->>D: Rule: edge1 moving AND edge2 still?
   D->>M: PUBLISH alerts {event:suspicious_movement}
   M-->>B: Deliver alert
-  B->>B: Print alarm in terminal
+  B->>B: Getar + notifikasi (Termux:API)
+  D->>M: PUBLISH status (retained)
+  M-->>W: Dashboard menampilkan ALERT
 ```
 
 ## Node responsibilities
@@ -44,8 +49,9 @@ sequenceDiagram
 | Node | Input | Process | Output | Source code |
 |---|---|---|---|---|
 | Edge 1 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 1 | `nodes/edge1_protected/main.py` |
-| Edge 2 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 2, displays alerts | `nodes/edge2_guardian/main.py` |
-| Detector service | Both MQTT topics | Pair latest readings + detection rule | MQTT alert | `nodes/detector_service/` |
+| Edge 2 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 2, getar + notifikasi saat alert | `nodes/edge2_guardian/main.py`, `shared/alarm.py` |
+| Detector service | Both MQTT topics | Pair latest readings + detection rule | MQTT alert + status | `nodes/detector_service/` |
+| Dashboard web | Telemetry, status, alerts | Menampilkan data & grafik | MQTT control (ARM/DISARM) | `dashboard/index.html` |
 | EMQX Cloud | MQTT packets | Routes publish to subscribers | MQTT packets | External managed broker |
 | Monitor (optional) | Alert MQTT topic | Prints events | Terminal log | `nodes/monitor/main.py` |
 
