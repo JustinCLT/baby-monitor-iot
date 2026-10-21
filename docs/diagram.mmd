@@ -1,0 +1,24 @@
+flowchart LR
+  subgraph LOCAL["1 NETWORK - Wi-Fi / Hotspot"]
+    subgraph EDGE1["NODE 1 - Edge 1: HP Dijaga"]
+      A1["Accelerometer"] --> RMS1["Processing 1: RMS Getaran"]
+      G1["Gyroscope"] --> ROT1["Processing 2: Total Rotasi"]
+      RMS1 --> PUB1["Publisher Edge 1"]
+      ROT1 --> PUB1
+    end
+    subgraph EDGE2["NODE 2 - Edge 2: HP Pemilik"]
+      A2["Accelerometer"] --> RMS2["Processing 1: RMS Getaran"]
+      G2["Gyroscope"] --> ROT2["Processing 2: Total Rotasi"]
+      RMS2 --> PUB2["Publisher + Alarm Subscriber"]
+      ROT2 --> PUB2
+    end
+    DET["NODE 3 - Python Detector Service"]
+  end
+  subgraph CLOUD["CLOUD"]
+    MQTT["EMQX MQTT Broker: TLS/8883"]
+  end
+  PUB1 -->|"Publish JSON Telemetry"| MQTT
+  PUB2 -->|"Publish JSON Telemetry"| MQTT
+  MQTT -->|"Subscribe edge/+/telemetry"| DET
+  DET -->|"Publish alerts"| MQTT
+  MQTT -->|"Subscribe alerts"| PUB2

@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant E1 as Edge 1 - HP Dijaga
+  participant E2 as Edge 2 - HP Pemilik
+  participant Broker as Cloud MQTT Broker
+  participant D as Detector Service
+  D->>Broker: SUBSCRIBE edge/+/telemetry
+  E2->>Broker: SUBSCRIBE alerts
+  E2->>Broker: PUBLISH edge2 motion (still)
+  E1->>Broker: PUBLISH edge1 motion (moving)
+  Broker-->>D: Telemetry from both devices
+  D->>D: Compute anomaly via rules.py
+  D->>Broker: PUBLISH alerts
+  Broker-->>E2: ALERT suspected movement
