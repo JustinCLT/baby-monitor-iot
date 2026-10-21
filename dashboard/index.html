@@ -337,6 +337,30 @@ $("arm-btn").addEventListener("click", () => sendControl("ARM"));
 $("disarm-btn").addEventListener("click", () => sendControl("DISARM"));
 window.addEventListener("resize", drawChart);
 loadSettings();
+
+// When opened through "python detector.py", the local HTTP server provides
+// only PUBLIC configuration. Broker username/password never leave the laptop.
+async function applyLocalConfig() {
+  try {
+    const response = await fetch("/config.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const config = await response.json();
+    if (!/^[A-Za-z0-9_-]+$/.test(config.project_id || "")) return;
+    $("project").value = config.project_id;
+    if (config.websocket_url) $("url").value = config.websocket_url;
+    $("username").value = "";
+    $("password").value = "";
+    if (config.automatic_connection) {
+      $("conn-form").requestSubmit();
+    } else {
+      $("settings").open = true;
+      setPill($("conn"), "Atur kredensial browser MQTT", "info");
+    }
+  } catch (_) {
+    // Opened as a standalone static HTML file: manual form still works.
+  }
+}
+applyLocalConfig();
 drawChart();
 setInterval(tick, 1000);
 </script>

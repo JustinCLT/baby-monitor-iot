@@ -1,58 +1,57 @@
-# Arsitektur dan diagram Mermaid
+# Arsitektur IoT
 
-## Alur lengkap
+Ada tiga node utama, berjalan **pada tiga perangkat fisik**: dua HP sebagai edge dan satu laptop sebagai detector/dashboard.
 
 ```mermaid
 flowchart TB
-  subgraph LOCAL["Wi-Fi yang sama - laboratorium"]
-    E1["Edge 1: HP dilindungi"]
-    E2["Edge 2: HP pemilik"]
-    DET["Detector Service: Python"]
-  end
-  subgraph BROKER["Cloud"]
-    MQTT["HiveMQ Public Broker (TLS: 8883)"]
-  end
-  E1 -->|"accelerometer + gyroscope -> RMS & rotasi -> JSON publish"| MQTT
-  E2 -->|"accelerometer + gyroscope -> RMS & rotasi -> JSON publish"| MQTT
-  MQTT -->|"MQTT subscribe: edge/+/telemetry"| DET
-  DET -->|"bandingkan data + tentukan status"| DET
-  DET -->|"MQTT publish: alerts"| MQTT
-  MQTT -->|"MQTT subscribe: alerts"| E2
-  DET -->|"MQTT publish: status (retained)"| MQTT
-  MQTT <-->|"MQTT over WebSocket"| WEB["Dashboard web"]
+    subgraph LAN["Satu jaringan Wi-Fi / hotspot"]
+        subgraph E1["NODE 1 — HP A"]
+            A1["Accelerometer + Gyroscope"] --> P1["RMS + rotasi"]
+        end
+        subgraph E2["NODE 2 — HP B"]
+            A2["Accelerometer + Gyroscope"] --> P2["RMS + rotasi"]
+        end
+        subgraph LAPTOP["NODE 3 — Laptop"]
+            D["Python Detector"]
+            UI["Dashboard localhost:8000"]
+        end
+    end
+    P1 -->|"MQTT TLS (Termux) / WSS (Browser)"| MQTT["Cloud MQTT Broker"]
+    P2 -->|"MQTT TLS (Termux) / WSS (Browser)"| MQTT
+    MQTT -->|"Subscribe telemetry"| D
+    D -->|"Publish alerts dan status"| MQTT
+    MQTT -->|"Subscribe alerts"| E2
+    MQTT <-->|"MQTT WSS"| UI
 ```
 
-## Sequence ketika HP diangkat
+## Peran node
+
+| Node | Perangkat | Input | Processing | Output |
+|---|---|---|---|---|
+| Edge 1 | HP A | Accelerometer + gyroscope | RMS + integrasi rotasi | Telemetry MQTT |
+| Edge 2 | HP B | Accelerometer + gyroscope | RMS + integrasi rotasi | Telemetry MQTT + terima alert |
+| Detector | Laptop | Telemetry dari broker | Sensor fusion rule-based | Status / alert MQTT |
+| Dashboard | Browser laptop | Status / telemetry MQTT | Visualisasi | Grafik & ARM/DISARM |
+| Broker | Cloud | Publish MQTT | Routing topic | Pesan ke subscriber |
+
+**Dua cara menjalankan edge asli:** Termux:API dengan Python atau browser melalui HTTPS dengan DeviceMotionEvent. Keduanya menghasilkan payload JSON identik. Source: `shared/processing.py` dan `web-edge/index.html`.
+
+## Data flow
 
 ```mermaid
 sequenceDiagram
-  participant A as Node 1: Protected HP
-  participant B as Node 2: Owner HP
-  participant M as HiveMQ Broker
-  participant D as Node 3: Detector
-  participant W as Dashboard web
-  D->>M: SUBSCRIBE pocketguard/<project>/edge/+/telemetry
-  B->>M: SUBSCRIBE pocketguard/<project>/alerts
-  B->>M: PUBLISH edge/edge2/telemetry (still)
-  A->>M: PUBLISH edge/edge1/telemetry (moving)
-  M-->>D: Deliver both telemetry messages
-  D->>D: Rule: edge1 moving AND edge2 still?
-  D->>M: PUBLISH alerts {event:suspicious_movement}
-  M-->>B: Deliver alert
-  B->>B: Getar + notifikasi (Termux:API)
-  D->>M: PUBLISH status (retained)
-  M-->>W: Dashboard menampilkan ALERT
+    participant A as HP A - Edge 1
+    participant B as HP B - Edge 2
+    participant M as MQTT Cloud
+    participant D as Laptop - Detector
+    participant W as Laptop - Dashboard
+    A->>M: telemetry edge1 (RMS, rotasi)
+    B->>M: telemetry edge2 (RMS, rotasi)
+    M->>D: subscribe edge/+/telemetry
+    D->>D: Compare motion windows
+    D->>M: publish alerts / status
+    M->>B: deliver alert
+    M->>W: deliver telemetry / status / alert
 ```
 
-## Node responsibilities
-
-| Node | Input | Process | Output | Source code |
-|---|---|---|---|---|
-| Edge 1 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 1 | `nodes/edge1_protected/main.py` |
-| Edge 2 | Accelerometer & gyro | RMS & angular integration | MQTT telemetry Edge 2, getar + notifikasi saat alert | `nodes/edge2_guardian/main.py`, `shared/alarm.py` |
-| Detector service | Both MQTT topics | Pair latest readings + detection rule | MQTT alert + status | `nodes/detector_service/` |
-| Dashboard web | Telemetry, status, alerts | Menampilkan data & grafik | MQTT control (ARM/DISARM) | `dashboard/index.html` |
-| HiveMQ public broker | MQTT packets | Routes publish to subscribers | MQTT packets | External public broker (cloud) |
-| Monitor (optional) | Alert MQTT topic | Prints events | Terminal log | `nodes/monitor/main.py` |
-
-**Interpretasi syarat satu network:** kedua edge pada hotspot/Wi-Fi yang sama. Cloud broker memang berada di luar LAN dan diakses via internet. Detector pada setup dasar berada di laptop, bukan VM cloud; bisa dipindahkan ke cloud jika perlu.
+Catatan: dashboard localhost tidak bisa diakses lewat `localhost` HP. Browser edge harus memakai origin HTTPS dari hosting tersendiri.

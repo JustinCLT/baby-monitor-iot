@@ -1,68 +1,55 @@
-# Membaca sensor Android asli
+# Opsi edge asli: Android + Termux
 
-`--source simulator` menjalankan data buatan. **Agar memenuhi tugas 2 edge device, jalankan kode pada 2 HP Android terpisah.**
+Jalankan NODE 1 dan NODE 2 pada **dua HP Android terpisah**, bukan dua terminal di laptop.
 
-## 1. Persiapan di kedua HP
+## Instalasi di kedua HP
 
-1. Pasang **Termux** dan **Termux:API** dari sumber yang kompatibel, misalnya F-Droid. Jangan mencampur versi aplikasi dari sumber berbeda.
-2. Beri izin sensor yang diminta Android saat diperlukan.
-3. Install paket di Termux:
+1. Install **Termux** dan **Termux:API** dari sumber distribusi yang kompatibel (contoh F-Droid), lalu berikan izin sensor yang diperlukan.
+2. Buka Termux:
 
 ```bash
 pkg update
-pkg install python termux-api git
-pip install paho-mqtt python-dotenv
-```
-
-Periksa sensor:
-
-```bash
-termux-sensor -l
-termux-sensor -a -n 1
-```
-
-Pastikan tersedia **Accelerometer** dan **Gyroscope**. Sebagian HP tidak punya gyroscope atau format/nama sensor berbeda.
-
-## 2. Ambil source code
-
-```bash
+pkg install python git termux-api
 git clone https://github.com/myudak/contoh-project-iot1.git
 cd contoh-project-iot1
+python -m pip install -r requirements.txt
 cp .env.example .env
+termux-sensor -l
 ```
 
-Edit `.env` pada kedua HP: cukup ganti `PROJECT_ID` dengan nama unik kelompok (harus sama di semua perangkat). Broker publik HiveMQ sudah menjadi default, tanpa username/password.
+Jika `termux-sensor -l` tidak menampilkan accelerometer dan gyroscope, gunakan HP yang mendukung keduanya.
 
-**Kedua HP harus berada pada Wi-Fi/hotspot yang sama dan terhubung ke internet.**
+3. Edit `PROJECT_ID` dalam `.env` agar **sama persis** dengan laptop. Broker publik default dapat dipakai tanpa username/password.
 
-## 3. Jalankan setiap node
+## Jalankan node yang sesuai
 
-Di **HP A (dijaga)**:
+**HP A — yang dijaga:**
 
 ```bash
 python hp_dijaga.py
 ```
 
-Di **HP B (pemilik)**:
+**HP B — HP pemilik:**
 
 ```bash
 python hp_pemilik.py
 ```
 
-Di **laptop** jalankan detector:
+**Laptop — detector dan dashboard:**
 
 ```bash
 python detector.py
 ```
 
-Ketika HP A bergerak dan HP B diam, HP B menerima alert MQTT: **bergetar** (`termux-vibrate`) dan menampilkan **notifikasi Android** (`termux-notification`), selain mencetak pesan di terminal.
+Lihat **http://localhost:8000** di browser laptop.
 
-Mau melihat semuanya sekaligus? Buka dashboard web di laptop: [DASHBOARD.md](DASHBOARD.md).
+Sensor masing-masing HP → RMS percepatan dan total rotasi → publish telemetry MQTT. Saat HP A bergerak dan HP B diam, HP B menerima alert, menjalankan getar `termux-vibrate` dan notifikasi `termux-notification` jika izin tersedia.
 
-## Catatan teknis
+**Termux bukan satu-satunya pilihan.** Jika mahasiswa ingin menggunakan browser HP tanpa Termux, baca [BROWSER_EDGE.md](BROWSER_EDGE.md).
 
-- Pembacaan `termux-sensor -n 1` berulang via subprocess sengaja dibuat sederhana. Bukan pembacaan frekuensi tinggi yang presisi; gerakan singkat dapat terlewat.
-- Battery saver dan aturan background Android dapat menghentikan pembacaan sensor. Pertahankan Termux aktif selama demo.
-- Periksa nama sensor dan JSON Termux:API di kedua HP sebelum presentasi. Jika perlu, ubah `shared/sensors.py`.
-- Jika sensor tidak tersedia, cari HP lain; **simulasi tidak menggantikan kewajiban sensor fisik**.
-- Pendekatan membandingkan gerak paling masuk akal bila kedua HP ditempatkan pada meja yang sama.
+## Catatan
+
+- Pembacaan sensor via Termux:API dilakukan berulang dan tidak berfrekuensi tinggi; gerakan cepat bisa terlewat.
+- Battery saver/background Android dapat menghentikan pembacaan.
+- Mode default Python pada HP menggunakan **sensor Android asli**. Simulasi hanya aktif jika pengguna secara eksplisit menambahkan `--source simulator`.
+- Semua perangkat tetap dalam satu Wi-Fi/hotspot dengan akses internet.

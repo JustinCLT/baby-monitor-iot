@@ -1,62 +1,44 @@
-# Dashboard web (MQTT over WebSocket)
+# Dashboard laptop — http://localhost:8000
 
-![Dashboard saat ALERT](img/dashboard.png)
+Dashboard disajikan otomatis saat **`python detector.py`** dijalankan di laptop.
 
-`dashboard/index.html` adalah **satu file HTML** tanpa server dan tanpa instalasi. Dashboard ini:
+- Melihat telemetry Edge 1 dan Edge 2, grafik RMS, serta status `NORMAL`, `ALERT`, atau `COMMON_MOTION`.
+- Tombol **ARM / DISARM** mengirim kontrol melalui MQTT Cloud.
+- Melihat riwayat alert saat halaman aktif.
 
-- menampilkan status detector (`NORMAL`, `ALERT`, `COMMON_MOTION`, `DISARMED`, …),
-- menampilkan getaran dan rotasi terbaru dari Edge 1 dan Edge 2, plus grafik 60 pesan terakhir,
-- mencatat riwayat alert,
-- punya tombol **ARM / DISARM** (publish ke topic `control`).
+## Jalankan
 
-Dashboard **bukan edge device** dan tidak dihitung sebagai sensor. Dashboard hanya subscriber dan publisher MQTT lain.
-
-## Kenapa WebSocket?
-
-Browser tidak bisa membuka koneksi TCP biasa ke port MQTT `8883`. Karena itu broker cloud juga menyediakan **MQTT over WebSocket** (`wss://`). Pesan, topic, dan broker tetap sama, hanya "jalan"-nya yang berbeda:
-
-| Client | Protokol | Contoh alamat |
-|---|---|---|
-| Edge 1, Edge 2, detector (Python) | MQTT over TLS | `broker.hivemq.com:8883` |
-| Dashboard (browser) | MQTT over WebSocket + TLS | `wss://broker.hivemq.com:8884/mqtt` |
-
-Untuk broker publik HiveMQ, alamatnya sudah terisi otomatis. Jika memakai broker pribadi, cek port WebSocket TLS dan path di konsol broker (misalnya EMQX Cloud memakai `8084` dan path `/mqtt`).
-
-## Cara membuka
-
-1. Jalankan detector dan kedua edge seperti biasa (lihat [SETUP.md](SETUP.md)).
-2. Buka `dashboard/index.html` dengan Chrome/Firefox (klik dua kali file-nya sudah cukup).
-3. Isi:
-   - **WebSocket URL**: `wss://broker.hivemq.com:8884/mqtt` (sudah terisi)
-   - **PROJECT_ID**: sama persis dengan `.env`
-   - **Username / Password**: kosongkan untuk broker publik
-4. Klik **Hubungkan**.
-
-URL, PROJECT_ID, dan username diingat browser. **Password tidak disimpan.**
-
-Opsional: publikasikan folder `dashboard/` lewat **GitHub Pages** agar dashboard bisa dibuka dari HP.
-
-## Topic yang dipakai
-
-```text
-SUBSCRIBE pocketguard/<PROJECT_ID>/edge/+/telemetry   data dua edge
-SUBSCRIBE pocketguard/<PROJECT_ID>/status             keputusan detector terbaru (retained)
-SUBSCRIBE pocketguard/<PROJECT_ID>/alerts             riwayat alert
-PUBLISH   pocketguard/<PROJECT_ID>/control            ARM / DISARM
+```bash
+python -m pip install -r requirements.txt
+python detector.py
 ```
 
-Topic `status` dikirim dengan flag **retained**, jadi dashboard yang baru tersambung langsung melihat status terakhir. Kalau detector mati mendadak, broker mengirim **Last Will** `OFFLINE`.
+Buka URL yang ditampilkan di terminal, default **http://localhost:8000**. Server HTTP hanya terikat ke `127.0.0.1` untuk akses laptop sendiri. `DASHBOARD_PORT` bisa diubah di `.env` jika port 8000 dipakai aplikasi lain.
 
-## Keamanan
+Server menyajikan `dashboard/index.html` dan `/config.json` yang hanya berisi PROJECT_ID serta URL WSS broker (tanpa password/kredensial). Pada broker publik default dashboard **auto-connect** dengan konfigurasi ini.
 
-Password broker diketik di browser. Untuk praktik yang baik, buat **akun khusus dashboard** dengan ACL terbatas (lihat [SECURITY.md](SECURITY.md)). Jangan pakai akun admin, dan jangan menaruh password di dalam file HTML.
+Untuk broker pribadi, dashboard menampilkan form agar pengguna mengisi kredensial **khusus dashboard**. Password broker dari `.env` laptop **tidak dikirim ke browser**. Set `MQTT_WS_URL` di `.env` untuk URL WSS broker privat.
+
+## Mengapa ada dua koneksi?
+
+```text
+HP A / HP B ---- MQTT TLS atau MQTT WSS ----> Broker Cloud
+Laptop Detector ---------- MQTT TLS --------> Broker Cloud
+Laptop Browser ----------- MQTT WSS --------> Broker Cloud
+                       ^
+          localhost:8000 hanya untuk file HTML
+```
+
+Browser tidak bisa memakai koneksi MQTT TCP port 8883, jadi memakai WebSocket over TLS (WSS). Semua memakai namespace topic `pocketguard/<PROJECT_ID>/...`.
 
 ## Troubleshooting
 
-| Gejala | Kemungkinan penyebab |
+| Gejala | Pemeriksaan |
 |---|---|
-| "Library MQTT.js gagal dimuat" | Tidak ada internet; library diambil dari CDN jsDelivr |
-| Tetap "Menghubungkan…" / "Menyambung ulang…" | Port/path WebSocket salah, atau WebSocket belum aktif di broker |
-| Terhubung tapi data kosong | `PROJECT_ID` berbeda dengan `.env`, atau ACL menolak subscribe |
-| Status `OFFLINE` | Detector tidak berjalan |
-| Tombol ARM/DISARM tidak berefek | ACL tidak mengizinkan publish ke `control`, atau detector mati |
+| Port 8000 dipakai | Set `DASHBOARD_PORT=8001` pada `.env` dan restart |
+| Dashboard terbuka tapi MQTT belum terhubung | Internet, alamat WSS, CDN MQTT.js, atau kredensial browser |
+| Dashboard kosong | PROJECT_ID harus sama pada laptop dan kedua HP |
+| Status OFFLINE | Pastikan proses `python detector.py` masih berjalan |
+| HP browser tidak punya sensor | Gunakan [BROWSER_EDGE.md](BROWSER_EDGE.md) untuk pengecekan dukungan sensor |
+
+Perlu browser pada HP sebagai edge? Itu halaman **berbeda**, `web-edge/index.html`, dan harus di-host lewat HTTPS. Dashboard lokal sendiri **tidak membaca sensor HP**.

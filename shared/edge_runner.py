@@ -1,13 +1,10 @@
-"""Common edge loop used by BOTH edge devices.
+"""Common edge pipeline, the same for protected and owner phones.
 
-sensor -> 2 data processing -> JSON telemetry -> MQTT publish
-
-Edge 1 and Edge 2 run exactly the same loop. The only difference is that
-Edge 2 also passes `on_alert`, so it subscribes to the alerts topic.
+Real sensor -> two feature extractions -> MQTT Cloud. Simulator is opt-in
+and MUST NOT be described as a real IoT physical-edge demonstration.
 """
 
 import argparse
-import shutil
 import json
 import time
 import uuid
@@ -23,16 +20,17 @@ AlertHandler = Callable[[dict], None]
 
 def _parse_args(device_id: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=f"PocketGuard {device_id}")
-    parser.add_argument("--source", choices=["auto", "simulator", "android"], default="auto",
-                        help="auto = sensor HP jika di Termux, simulator jika di laptop")
-    parser.add_argument("--scenario", choices=["still", "pickup", "table_shake"], default="still",
-                        help="Only used by --source simulator")
-    parser.add_argument("--interval", type=float, default=None,
-                        help="Approximate sample interval in seconds (default 0.5 on Android, 0.35 simulator)")
-    parser.add_argument("--samples", type=int, default=5, help="Samples per processing window")
+    parser.add_argument(
+        "--source", choices=["android", "simulator"], default="android",
+        help="Default: real Android sensors. Use simulator only for testing.",
+    )
+    parser.add_argument(
+        "--scenario", choices=["still", "pickup", "table_shake"], default="still",
+        help="Only used with --source simulator",
+    )
+    parser.add_argument("--interval", type=float, default=None)
+    parser.add_argument("--samples", type=int, default=5)
     args = parser.parse_args()
-    if args.source == "auto":
-        args.source = "android" if shutil.which("termux-sensor") else "simulator"
     if args.interval is None:
         args.interval = 0.5 if args.source == "android" else 0.35
     if args.interval <= 0 or args.samples < 2:
@@ -58,9 +56,9 @@ def run_edge(device_id: str, on_alert: AlertHandler | None = None):
             try:
                 alert = json.loads(message.payload)
                 if not isinstance(alert, dict):
-                    raise ValueError("alert must be a JSON object")
+                    raise ValueError("Alert must be a JSON object")
             except ValueError:
-                print(f"[{label}] Ignored malformed alert: {message.payload[:200]!r}")
+                print(f"[{label}] Ignored malformed alert")
                 return
             on_alert(alert)
 
@@ -71,7 +69,7 @@ def run_edge(device_id: str, on_alert: AlertHandler | None = None):
     boot_id = uuid.uuid4().hex
     sequence = 0
     telemetry_topic = topic(f"edge/{device_id}/telemetry")
-    print(f"[{label}] Source: {args.source} / scenario: {args.scenario}")
+    print(f"[{label}] Source: {args.source}")
     print(f"[{label}] Publishes to: {telemetry_topic}")
 
     try:
@@ -81,10 +79,17 @@ def run_edge(device_id: str, on_alert: AlertHandler | None = None):
                 samples.append(source.read())
                 time.sleep(args.interval)
             features = extract_features(samples)
-            telemetry = Telemetry.make(device_id, boot_id, sequence, features.motion_rms, features.rotation_rad)
+            telemetry = Telemetry.make(
+                device_id, boot_id, sequence,
+                features.motion_rms, features.rotation_rad,
+            )
             info = client.publish(telemetry_topic, telemetry.to_json(), qos=1)
             info.wait_for_publish(timeout=10)
-            print(f"[{label}] #{sequence} motion={features.motion_rms:.3f} m/s² | rotation={features.rotation_rad:.3f} rad")
+            print(
+                f"[{label}] #{sequence} "
+                f"motion={features.motion_rms:.3f} m/s², "
+                f"rotation={features.rotation_rad:.3f} rad"
+            )
             sequence += 1
     except KeyboardInterrupt:
         print(f"[{label}] Stopped")

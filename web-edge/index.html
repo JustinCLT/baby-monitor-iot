@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PocketGuard · HP Edge</title>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
+  <style>
+    :root{font-family:system-ui,Arial,sans-serif;color:#152230;background:#f8fafc}
+    *{box-sizing:border-box}body{margin:0;padding:18px}
+    main{max-width:640px;margin:0 auto}
+    h1{font-size:1.6rem;margin:6px 0}p{line-height:1.5}
+    .card{background:#fff;border:1px solid #dce2e8;border-radius:12px;padding:16px;margin:14px 0}
+    label{display:block;margin:10px 0;font-weight:600}
+    input,select{display:block;width:100%;margin-top:4px;padding:11px;border:1px solid #b7c4ce;border-radius:8px;font:inherit;background:#fff;color:inherit}
+    button{border:0;background:#1458a8;color:#fff;border-radius:8px;padding:12px 18px;font:inherit;cursor:pointer}
+    button:disabled{background:#9ca7b2;cursor:default}
+    .muted{color:#546476;font-size:.92rem}.status{font-weight:700}
+    dl{display:grid;grid-template-columns:1fr auto;gap:8px}
+    dt{color:#546476}dd{margin:0;font-variant-numeric:tabular-nums}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.81rem;background:#f1f5f9;border-radius:8px;padding:12px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>PocketGuard · HP Edge</h1>
+  <p>Jadikan HP ini <strong>edge device nyata</strong> tanpa Termux. Halaman membaca <strong>accelerometer dan gyroscope</strong> melalui DeviceMotion, memproses RMS/rotasi, lalu publish ke MQTT Cloud.</p>
+  <section class="card">
+    <form id="setup">
+      <label>Peran perangkat
+        <select id="role">
+          <option value="edge1">Edge 1 — HP yang dijaga</option>
+          <option value="edge2">Edge 2 — HP pemilik (terima alert)</option>
+        </select>
+      </label>
+      <label>PROJECT_ID (harus sama dengan laptop)
+        <input id="project" value="kelas_iot_kelompok_07" required pattern="[A-Za-z0-9_-]+">
+      </label>
+      <label>MQTT WebSocket URL
+        <input id="broker" value="wss://broker.hivemq.com:8884/mqtt" required>
+      </label>
+      <details>
+        <summary>Broker pribadi (opsional)</summary>
+        <label>Username<input id="username" autocomplete="username"></label>
+        <label>Password<input id="password" type="password" autocomplete="off"></label>
+      </details>
+      <p class="muted">Harus dibuka lewat <strong>HTTPS</strong>, bukan alamat HTTP laptop. Beri izin motion sensors jika diminta. Browser harus tetap terbuka dan aktif selama pengujian.</p>
+      <button id="start" type="submit">Mulai membaca sensor</button>
+      <button id="stop" type="button" disabled>Stop</button>
+    </form>
+  </section>
+  <section class="card">
+    <div class="status" id="status" role="status">Belum berjalan</div>
+    <dl>
+      <dt>Pembacaan sensor valid</dt><dd id="samples">0</dd>
+      <dt>RMS percepatan (m/s²)</dt><dd id="motion">—</dd>
+      <dt>Rotasi terintegrasi (rad)</dt><dd id="rotation">—</dd>
+      <dt>Pesan MQTT terkirim</dt><dd id="sent">0</dd>
+    </dl>
+    <h2 style="font-size:1rem">Alert untuk Edge 2</h2>
+    <p id="alert" class="muted">Belum ada alert.</p>
+    <p class="muted">Data yang ditampilkan berasal dari sensor fisik. Kalau sensor tidak tersedia, halaman tidak membuat data simulasi.</p>
+  </section>
+  <section class="card">
+    <strong>Log</strong>
+    <pre id="log">Menunggu start...</pre>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const GRAVITY = 9.81;
+const WINDOW_MS = 1800;
+const MIN_SAMPLES = 4;
+const MAX_SAMPLES = 250;
+let client = null, active = false, connected = false, samples = [];
+let sequence = 0, bootId = "", lastPublish = 0, lastSample = 0;
+let project = "", role = "", watcher = null;
+
+function log(message) {
+  const line = new Date().toLocaleTimeString("id-ID") + " — " + message;
+  $("log").textContent = line + "\n" + $("log").textContent.slice(0, 1600);
+}
+function status(message) { $("status").textContent = message; }
+function finite3(x, y, z) {
+  return [x,y,z].every((number) => typeof number === "number" && Number.isFinite(number));
+}
+function features(windowSamples) {
+  // Same two processing steps as shared/processing.py.
+  let squared = 0, angle = 0;
+  for (let i = 0; i < windowSamples.length; i++) {
+    const s = windowSamples[i];
+    const magnitude = Math.hypot(...s.accel);
+    squared += (magnitude - GRAVITY) ** 2;
+    if (i > 0) {
+      const dt = Math.max(0, (s.time - windowSamples[i - 1].time) / 1000);
+      angle += Math.hypot(...s.gyro) * dt;
+    }
+  }
+  return {
+    motion_rms: Number(Math.sqrt(squared / windowSamples.length).toFixed(4)),
+    rotation_rad: Number(angle.toFixed(4))
+  };
+}
+function onMotion(event) {
+  if (!active) return;
+  const a = event.accelerationIncludingGravity;
+  const r = event.rotationRate;
+  if (!a || !r || !finite3(a.x, a.y, a.z) || !finite3(r.alpha, r.beta, r.gamma)) {
+    return; // Never invent sensor values.
+  }
+  const now = performance.now();
+  // DeviceMotion rotationRate is degrees/second. Python gyro expects rad/s.
+  const RAD = Math.PI / 180;
+  samples.push({
+    time: now,
+    accel: [a.x, a.y, a.z],
+    gyro: [r.alpha * RAD, r.beta * RAD, r.gamma * RAD],
+  });
+  lastSample = now;
+  $("samples").textContent = String(Number($("samples").textContent) + 1);
+  if (samples.length > MAX_SAMPLES) samples.shift();
+  if (now - lastPublish < WINDOW_MS || samples.length < MIN_SAMPLES || !connected) return;
+  const processed = features(samples);
+  $("motion").textContent = processed.motion_rms.toFixed(3);
+  $("rotation").textContent = processed.rotation_rad.toFixed(3);
+  const payload = {
+    device_id: role,
+    boot_id: bootId,
+    sequence: sequence++,
+    sent_at_ms: Date.now(),
+    ...processed,
+  };
+  client.publish("pocketguard/" + project + "/edge/" + role + "/telemetry", JSON.stringify(payload), { qos: 1 }, (error) => {
+    if (error) log("MQTT publish gagal: " + error.message);
+    else $("sent").textContent = String(Number($("sent").textContent) + 1);
+  });
+  lastPublish = now;
+  samples = [];
+}
+function stop() {
+  active = false;
+  connected = false;
+  window.removeEventListener("devicemotion", onMotion);
+  if (watcher !== null) clearInterval(watcher);
+  watcher = null;
+  if (client) client.end(true);
+  client = null;
+  $("start").disabled = false;
+  $("stop").disabled = true;
+  status("Berhenti");
+}
+async function start(event) {
+  event.preventDefault();
+  if (active) return;
+  if (!window.isSecureContext) {
+    status("Butuh HTTPS. Buka halaman dari hosting HTTPS (bukan HTTP IP lokal).");
+    return;
+  }
+  if (typeof DeviceMotionEvent === "undefined") {
+    status("DeviceMotion tidak didukung browser/perangkat ini.");
+    return;
+  }
+  if (typeof mqtt === "undefined") {
+    status("MQTT.js gagal dimuat. Periksa koneksi internet.");
+    return;
+  }
+  role = $("role").value;
+  project = $("project").value.trim();
+  const broker = $("broker").value.trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(project) || !/^wss:\/\//.test(broker)) {
+    status("PROJECT_ID tidak valid atau URL harus memakai wss://");
+    return;
+  }
+
+  // On iOS this call must be triggered by the user pressing this button.
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === "function") {
+      const permission = await DeviceMotionEvent.requestPermission();
+      if (permission !== "granted") throw new Error("Izin motion sensor ditolak");
+    }
+  } catch (err) {
+    status("Izin sensor gagal: " + err.message);
+    return;
+  }
+
+  active = true;
+  connected = false;
+  samples = [];
+  sequence = 0;
+  bootId = crypto.randomUUID();
+  lastSample = 0;
+  lastPublish = performance.now();
+  $("samples").textContent = "0";
+  $("sent").textContent = "0";
+  $("motion").textContent = "—";
+  $("rotation").textContent = "—";
+  $("alert").textContent = "Belum ada alert.";
+  $("start").disabled = true;
+  $("stop").disabled = false;
+
+  const namespace = "pocketguard/" + project;
+  client = mqtt.connect(broker, {
+    clientId: project + "-" + role + "-browser-" + crypto.randomUUID().slice(0, 8),
+    username: $("username").value || undefined,
+    password: $("password").value || undefined,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+  });
+  client.on("connect", () => {
+    connected = true;
+    status("Sensor aktif · MQTT terhubung (" + role + ")");
+    log("Connected. Publish ke " + namespace + "/edge/" + role + "/telemetry");
+    if (role === "edge2") client.subscribe(namespace + "/alerts", { qos: 1 });
+  });
+  client.on("offline", () => { connected = false; status("Koneksi MQTT terputus, mencoba lagi..."); });
+  client.on("error", (error) => { status("MQTT error: " + error.message); log(error.message); });
+  client.on("message", (topic, payload) => {
+    if (role !== "edge2" || topic !== namespace + "/alerts") return;
+    let alert;
+    try { alert = JSON.parse(payload.toString()); } catch { return; }
+    $("alert").textContent = "ALERT: " + String(alert.reason || "Gerakan mencurigakan");
+    if (navigator.vibrate) navigator.vibrate([250, 100, 250]);
+    log("ALERT diterima dari detector");
+  });
+  window.addEventListener("devicemotion", onMotion);
+  status("Menunggu sensor & MQTT...");
+  log("Izin sensor diterima; menunggu pembacaan fisik.");
+  watcher = setInterval(() => {
+    if (!active) return;
+    if (!lastSample || performance.now() - lastSample > 6000) {
+      status("Sensor tidak mengirim accelerometer + gyroscope. Cek dukungan dan izin browser.");
+    }
+  }, 2500);
+}
+$("setup").addEventListener("submit", start);
+$("stop").addEventListener("click", stop);
+const params = new URLSearchParams(location.search);
+if (/^[A-Za-z0-9_-]+$/.test(params.get("project") || "")) $("project").value = params.get("project");
+if (["edge1", "edge2"].includes(params.get("role"))) $("role").value = params.get("role");
+window.addEventListener("pagehide", stop);
+</script>
+</body>
+</html>

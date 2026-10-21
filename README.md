@@ -1,136 +1,97 @@
-# PocketGuard IoT — Contoh Proyek IoT Anti-Pencurian HP
+# PocketGuard IoT
 
-Contoh proyek untuk tugas IoT: **2 edge device, 2 sensor, 2 data processing, 1 algoritma, MQTT ke cloud, dan dashboard web**. Setiap node dipisah ke foldernya sendiri supaya mudah dipelajari.
+Contoh proyek IoT untuk belajar: **2 HP sebagai edge**, **accelerometer + gyroscope**, **2 proses pengolahan data**, **MQTT Cloud**, dan **dashboard di laptop**. Data berasal dari sensor fisik — bukan simulator.
 
-> ⚠️ **Hanya contoh belajar.** Ide PocketGuard tidak boleh dipakai ulang sebagai proyek kelompok. Gerakan mencurigakan juga **bukan bukti pencurian**.
+![Dashboard PocketGuard](docs/img/dashboard.png)
 
-![Dashboard PocketGuard saat ALERT](docs/img/dashboard.png)
-
-## Ide singkat
-
-HP A (yang dijaga) dan HP B (milik pemilik) diletakkan di meja yang sama. Keduanya mengirim data gerakan ke broker MQTT di cloud. Detector membandingkan keduanya:
-
-| HP A | HP B | Keputusan | Artinya |
-|---|---|---|---|
-| diam | diam | `NORMAL` | aman |
-| **bergerak** | diam | **`ALERT`** | HP A diangkat orang → HP B bergetar |
-| bergerak | bergerak | `COMMON_MOTION` | meja terguncang / dibawa pemilik, bukan alarm |
-
-## Arsitektur
+## Cara kerja
 
 ```mermaid
 flowchart LR
-    subgraph WIFI["SATU JARINGAN: Wi-Fi / hotspot yang sama"]
-        E1["NODE 1 — Edge 1: HP dijaga<br/>accelerometer + gyroscope"]
-        E2["NODE 2 — Edge 2: HP pemilik<br/>accelerometer + gyroscope + alarm"]
-        D["NODE 3 — Detector (laptop)"]
-    end
-    subgraph CLOUD["CLOUD"]
-        M["MQTT Broker publik<br/>broker.hivemq.com<br/>TLS :8883 · WSS :8884"]
-    end
-    W["Dashboard web (browser)"]
-    E1 -->|"telemetry"| M
-    E2 -->|"telemetry"| M
-    M -->|"telemetry"| D
-    D -->|"alerts + status"| M
-    M -->|"alerts"| E2
-    M <-->|"MQTT over WebSocket"| W
+  subgraph WIFI["Satu Wi-Fi / hotspot"]
+    A["HP A · Edge 1<br/>Sensor gerakan"]
+    B["HP B · Edge 2<br/>Sensor gerakan + alarm"]
+    L["Laptop · Detector<br/>localhost:8000"]
+  end
+  A -->|MQTT| M["Broker MQTT Cloud"]
+  B -->|MQTT| M
+  M -->|Telemetry| L
+  L -->|Alert| M
+  M -->|Alert| B
 ```
 
-| Persyaratan tugas | Di proyek ini |
-|---|---|
-| 3 orang | Edge · Processing & Algoritma · Cloud & Dashboard ([pembagian kerja](docs/GITHUB.md)) |
-| 2 edge device | HP A menjalankan `edge1`, HP B menjalankan `edge2` |
-| 2 sensor | Accelerometer + gyroscope di setiap HP |
-| 2 data processing | RMS percepatan + integrasi rotasi ([LEARNING.md](docs/LEARNING.md)) |
-| Algoritma | Rule-based sensor fusion: bandingkan gerakan dua edge |
-| Protokol & cloud | MQTT over TLS ke broker cloud (HiveMQ public broker), MQTT over WebSocket untuk dashboard |
-| Satu jaringan | Kedua HP (dan laptop detector) di Wi-Fi/hotspot yang sama |
+HP A bergerak sedangkan HP B diam → detector mengirim **ALERT**. Kedua HP bergerak bersamaan → `COMMON_MOTION`.
 
-## Struktur folder
+## 1. Laptop — jalankan detector & dashboard
 
-```text
-contoh-project-iot1/
-├── hp_dijaga.py                     Jalankan di HP A (yang dijaga)
-├── hp_pemilik.py                    Jalankan di HP B (pemilik)
-├── detector.py                      Jalankan di laptop
-├── nodes/
-│   ├── edge1_protected/main.py      NODE 1: HP yang dijaga
-│   ├── edge2_guardian/main.py       NODE 2: HP pemilik (alarm getar + notifikasi)
-│   ├── detector_service/main.py     NODE 3: subscribe telemetry, publish alert & status
-│   ├── detector_service/rules.py    Algoritma deteksi (tanpa MQTT, mudah dites)
-│   └── monitor/main.py              Monitor alert di terminal (opsional)
-├── shared/
-│   ├── sensors.py                   Sensor Android (Termux:API) atau simulator
-│   ├── processing.py                Dua data processing
-│   ├── messages.py                  Format JSON telemetry & status
-│   ├── mqtt_connection.py           Koneksi ke broker cloud (TLS)
-│   ├── edge_runner.py               Loop edge: sensor → processing → MQTT
-│   └── alarm.py                     Output HP B: getar + notifikasi
-├── dashboard/index.html             Dashboard web, satu file, tanpa server
-├── scripts/                         offline_demo, send_control, replay_test
-├── tests/                           Unit test
-└── docs/                            Penjelasan lengkap + diagram
-```
-
-## 1. Coba tanpa HP dan tanpa broker
-
-Python **3.10+**:
+Pastikan sudah ada **Python 3.10+** dan internet.
 
 ```bash
+git clone https://github.com/myudak/contoh-project-iot1.git
+cd contoh-project-iot1
 python -m pip install -r requirements.txt
-python -m scripts.offline_demo
-python -m unittest discover -s tests -v
 ```
 
-Hasil yang diharapkan: `NORMAL` → `ALERT` → `COMMON_MOTION` → `NORMAL`. Ini hanya simulasi algoritma; **belum memenuhi syarat hardware dan cloud**.
-
-## 2. Jalankan dengan broker cloud (simulator di laptop)
-
-Broker default adalah **broker publik HiveMQ** (tanpa daftar akun). Cukup:
+Buat konfigurasi dari `.env.example`:
 
 ```bash
-cp .env.example .env      # ganti PROJECT_ID dengan nama unik kelompokmu
+cp .env.example .env
 ```
 
-Buka 3 terminal:
+*Di Windows PowerShell, gunakan `Copy-Item .env.example .env`.*
+
+Ganti `PROJECT_ID` di `.env` menjadi nama kelompok yang unik, misalnya `iot_kelompok_07`. Default memakai broker publik HiveMQ (tanpa akun, **jangan kirim data rahasia**).
 
 ```bash
-python detector.py                       # laptop
-python hp_pemilik.py                     # HP B (di laptop: simulasi diam)
-python hp_dijaga.py --scenario pickup    # HP A (di laptop: simulasi diangkat)
+python detector.py
 ```
 
-Lalu buka `dashboard/index.html` di browser ([DASHBOARD.md](docs/DASHBOARD.md)).
+Buka **http://localhost:8000** di laptop. Dashboard otomatis membaca konfigurasi broker publik dan PROJECT_ID dari laptop.
 
-ARM / DISARM bisa lewat tombol dashboard atau:
+## 2. HP A dan HP B — pilih salah satu cara
 
+### Opsi A: Browser HP (tanpa Termux)
+
+1. Publish folder `web-edge/` ke **hosting HTTPS** (contohnya Netlify Drop atau GitHub Pages). Buka link HTTPS tersebut di **dua HP**.
+2. Pilih **Edge 1** di HP A, **Edge 2** di HP B.
+3. Isi `PROJECT_ID` sama persis dengan di laptop.
+4. Tekan **Mulai membaca sensor**, lalu berikan izin gerak jika diminta.
+
+Browser akan memproses data accelerometer + gyroscope dan mengirimnya lewat **MQTT over WebSocket**. Perangkat harus mendukung `DeviceMotionEvent` dan memberi data gyroscope; jika tidak tersedia, gunakan Opsi B.
+
+**[Panduan browser & hosting HTTPS →](docs/BROWSER_EDGE.md)**
+
+### Opsi B: Termux + Python pada 2 HP Android
+
+Pada kedua HP: install Termux + Termux:API, clone repo, install dependensi, lalu samakan `PROJECT_ID` dengan laptop.
+
+**HP A:**
 ```bash
-python -m scripts.send_control DISARM
-python -m scripts.send_control ARM
+python hp_dijaga.py
 ```
 
-## 3. Jalankan di 2 HP Android sungguhan
+**HP B:**
+```bash
+python hp_pemilik.py
+```
 
-Untuk memenuhi syarat 2 edge fisik, jalankan `python hp_dijaga.py` dan `python hp_pemilik.py` di **dua HP terpisah**. Di Termux, sensor HP dipakai otomatis. Langkah lengkapnya ada di [docs/ANDROID.md](docs/ANDROID.md).
+Jalankan di **dua HP fisik**, bukan dua terminal laptop. **[Panduan Termux →](docs/ANDROID.md)**
 
-## Dokumentasi
+## 3. Coba sistemnya
 
-1. [ARCHITECTURE.md](docs/ARCHITECTURE.md) — node, alur data, diagram.
-2. [LEARNING.md](docs/LEARNING.md) — sensor, RMS, integrasi rotasi, algoritma.
-3. [SETUP.md](docs/SETUP.md) — broker, `.env`, topic MQTT.
-4. [ANDROID.md](docs/ANDROID.md) — Termux & Termux:API di 2 HP.
-5. [DASHBOARD.md](docs/DASHBOARD.md) — dashboard web lewat MQTT over WebSocket.
-6. [SECURITY.md](docs/SECURITY.md) — TLS, ACL, lab replay.
-7. [GITHUB.md](docs/GITHUB.md) — clone, pembagian kerja, tests.
+Letakkan kedua HP di meja yang sama. Saat HP A diangkat dan HP B diam, dashboard berubah menjadi `ALERT`. Pada HP B, notifikasi/getar tersedia lewat Termux; pada opsi browser tampil alert di halaman dan getar jika browser mendukungnya.
 
-## Batasan
+**Semua perangkat harus berada dalam satu Wi-Fi/hotspot dan terhubung internet.** Dashboard `localhost` hanya di laptop. Simulator masih ada untuk debugging, tetapi **tidak dihitung sebagai edge fisik**.
 
-- Algoritma **rule-based** dengan threshold awal, bukan model machine learning terlatih.
-- Pembacaan sensor via Termux:API cukup lambat; gerakan sangat singkat bisa terlewat.
-- Alarm HP B memakai `termux-vibrate` dan `termux-notification`; di laptop alarm hanya tercetak di terminal.
-- Belum ada heartbeat per HP. Dashboard menandai edge "Offline" bila >10 detik tanpa data.
-- TLS melindungi jalur komunikasi, **bukan kebenaran data sensor** yang dikirim client.
-- Bukan sistem anti-pencurian siap produksi.
+## Pelajari kodenya
 
-MIT License · Proyek pembelajaran IoT.
+- `detector.py` → NODE 3 (laptop + localhost dashboard)
+- `hp_dijaga.py` → NODE 1 (sensor HP A lewat Termux)
+- `hp_pemilik.py` → NODE 2 (sensor HP B + alarm)
+- `web-edge/index.html` → alternatif NODE 1 / NODE 2 via browser
+- `shared/processing.py` → dua data processing (RMS dan rotasi)
+- `nodes/detector_service/rules.py` → algoritma sensor fusion
+
+Dokumentasi: [Arsitektur](docs/ARCHITECTURE.md) · [MQTT](docs/SETUP.md) · [Algoritma](docs/LEARNING.md) · [Dashboard](docs/DASHBOARD.md) · [Security](docs/SECURITY.md).
+
+> Proyek pembelajaran, bukan sistem anti-pencurian produksi. Perangkat/browser bisa memiliki sensor atau izin yang berbeda. Broker publik tidak menyediakan autentikasi/ACL untuk topik kelompok.
