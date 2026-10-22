@@ -30,9 +30,13 @@ def _parse_args(device_id: str) -> argparse.Namespace:
     )
     parser.add_argument("--interval", type=float, default=None)
     parser.add_argument("--samples", type=int, default=5)
+    parser.add_argument(
+        "--debug-sensors", action="store_true",
+        help="Print raw accelerometer/gyroscope values before processing.",
+    )
     args = parser.parse_args()
     if args.interval is None:
-        args.interval = 0.5 if args.source == "android" else 0.35
+        args.interval = 0.1 if args.source == "android" else 0.35
     if args.interval <= 0 or args.samples < 2:
         parser.error("--interval must be positive and --samples >= 2")
     return args
@@ -75,9 +79,17 @@ def run_edge(device_id: str, on_alert: AlertHandler | None = None):
     try:
         while True:
             samples = []
-            for _ in range(args.samples):
-                samples.append(source.read())
-                time.sleep(args.interval)
+            for sample_index in range(args.samples):
+                sample = source.read()
+                samples.append(sample)
+                if args.debug_sensors:
+                    print(
+                        f"[{label} | RAW] accel={sample.acceleration} m/s² "
+                        f"gyro={sample.gyroscope} rad/s",
+                        flush=True,
+                    )
+                if sample_index < args.samples - 1:
+                    time.sleep(args.interval)
             features = extract_features(samples)
             telemetry = Telemetry.make(
                 device_id, boot_id, sequence,

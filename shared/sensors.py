@@ -60,16 +60,41 @@ class AndroidTermux:
             names = names.get("sensors", [])
         if not isinstance(names, list):
             raise RuntimeError("Unexpected sensor listing. Run termux-sensor -l and inspect the result")
-        self.accel_name = next((name for name in names if "accelerometer" in name.lower()), None)
-        self.gyro_name = next((name for name in names if "gyroscope" in name.lower()), None)
+        self.accel_name = next(
+            (name for name in names if
+             ("accelerometer" in name.lower() or "acceleration sensor" in name.lower())
+             and "uncalibrated" not in name.lower()),
+            None,
+        )
+        self.gyro_name = next(
+            (name for name in names if "gyroscope" in name.lower()
+             and "uncalibrated" not in name.lower()),
+            None,
+        )
         if not self.accel_name or not self.gyro_name:
-            raise RuntimeError(f"Need accelerometer and gyroscope, found: {names}")
+            raise RuntimeError(
+                f"Accelerometer + gyroscope belum terdeteksi. Daftar: {names}. "
+                "Pastikan kedua sensor ada di HP dan Termux:API terpasang."
+            )
+        print(f"[SENSOR] Accelerometer: {self.accel_name}")
+        print(f"[SENSOR] Gyroscope: {self.gyro_name}")
 
     def read(self) -> SensorSample:
-        output = subprocess.run(
-            ["termux-sensor", "-s", f"{self.accel_name},{self.gyro_name}", "-n", "1"],
-            capture_output=True, text=True, timeout=12, check=True,
-        ).stdout
+        # Without -d, Termux:API waits ~1000 ms before each sample.
+        # -d 100 shortens it to ~100 ms so a brief pickup is not missed.
+        try:
+            output = subprocess.run(
+                [
+                    "termux-sensor", "-s", f"{self.accel_name},{self.gyro_name}",
+                    "-d", "100", "-n", "1",
+                ],
+                capture_output=True, text=True, timeout=12, check=True,
+            ).stdout
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(
+                "Termux:API gagal membaca sensor. Uji: termux-sensor -l "
+                "dan termux-sensor -a -d 100 -n 1; cek instalasi/izin Termux:API."
+            ) from exc
         try:
             data = json.loads(output)
             accel = tuple(float(v) for v in data[self.accel_name]["values"][:3])

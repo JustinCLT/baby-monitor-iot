@@ -70,3 +70,15 @@ Ketika Edge 2 (browser) menerima MQTT `/alerts`, halaman menampilkan teks alert 
 ## Keamanan
 
 Broker publik hanya untuk pengujian. Siapa pun yang mengetahui topic bisa menyuntikkan data, membaca data, atau mengirim control. Gunakan `PROJECT_ID` unik dan jangan kirim data sensitif. Untuk broker privat, isi username/password lewat halaman pada saat koneksi, gunakan ACL minimal, dan pastikan endpoint WSS benar. Jangan menyimpan kredensial produksi di HTML statis.
+
+## Debug sensor browser HP
+
+Di halaman `web-edge/`, lihat empat counter: **Event motion diterima**, **Accelerometer tersedia**, **Gyroscope tersedia**, dan **Pembacaan 2 sensor valid**.
+
+- **Event motion = 0:** halaman mungkin bukan HTTPS, dibuka di in-app browser, atau Chrome memblokir *Motion sensors*. Di Chrome Android: **⋮ → Settings/Setelan → Site settings/Setelan situs → Motion sensors/Sensor gerak → Allow/Izinkan**, kemudian refresh.
+- **Event naik, accelerometer = 0:** browser tidak memberikan pembacaan accelerometer valid.
+- **Accelerometer naik, gyroscope = 0:** `DeviceMotionEvent.rotationRate` tidak tersedia. Browser edge memerlukan **dua** sensor; gunakan mode Termux:API agar requirement tetap terpenuhi.
+- **Dua sensor valid naik, MQTT sent = 0:** lihat status MQTT, URL `wss://`, koneksi internet dan PROJECT_ID. Nilai RMS/rotasi sekarang tetap tampil meskipun broker belum tersambung.
+- **MQTT sent naik, tapi alarm tidak ada:** periksa apakah Edge 2 dan detector berjalan, aktif (ARM), dan berada pada PROJECT_ID yang sama; cek log detector.
+
+Pertahankan tab di foreground. Beberapa browser membatasi sensor saat tab berpindah atau layar terkunci.

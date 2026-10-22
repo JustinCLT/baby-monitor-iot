@@ -95,3 +95,9 @@ Letakkan kedua HP di meja yang sama. Saat HP A diangkat dan HP B diam, dashboard
 Dokumentasi: [Arsitektur](docs/ARCHITECTURE.md) · [MQTT](docs/SETUP.md) · [Algoritma](docs/LEARNING.md) · [Dashboard](docs/DASHBOARD.md) · [Security](docs/SECURITY.md).
 
 > Proyek pembelajaran, bukan sistem anti-pencurian produksi. Perangkat/browser bisa memiliki sensor atau izin yang berbeda. Broker publik tidak menyediakan autentikasi/ACL untuk topik kelompok.
+
+### HP tidak terdeteksi bergerak?
+
+- **Browser:** cek indikator event motion, accelerometer, gyroscope, dan jumlah pesan MQTT pada halaman. Ikuti [debug browser](docs/BROWSER_EDGE.md).
+- **Termux:** jalankan `python -m scripts.check_sensors` sebelum menyalakan broker dan `python hp_dijaga.py --debug-sensors` untuk mencetak data mentah. Ikuti [debug Android](docs/ANDROID.md).
+- Alarm hanya muncul bila kedua edge + detector berjalan, proyek/namespace MQTT sama, dan HP A bergerak sementara HP B relatif diam.

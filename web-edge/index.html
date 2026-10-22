@@ -52,7 +52,10 @@
   <section class="card">
     <div class="status" id="status" role="status">Belum berjalan</div>
     <dl>
-      <dt>Pembacaan sensor valid</dt><dd id="samples">0</dd>
+      <dt>Event motion diterima</dt><dd id="events">0</dd>
+      <dt>Accelerometer tersedia</dt><dd id="accelEvents">0</dd>
+      <dt>Gyroscope tersedia</dt><dd id="gyroEvents">0</dd>
+      <dt>Pembacaan 2 sensor valid</dt><dd id="samples">0</dd>
       <dt>RMS percepatan (m/s²)</dt><dd id="motion">—</dd>
       <dt>Rotasi terintegrasi (rad)</dt><dd id="rotation">—</dd>
       <dt>Pesan MQTT terkirim</dt><dd id="sent">0</dd>
@@ -75,6 +78,7 @@ const MIN_SAMPLES = 4;
 const MAX_SAMPLES = 250;
 let client = null, active = false, connected = false, samples = [];
 let sequence = 0, bootId = "", lastPublish = 0, lastSample = 0;
+let motionEvents = 0, accelEvents = 0, gyroEvents = 0;
 let project = "", role = "", watcher = null;
 
 function log(message) {
@@ -104,11 +108,23 @@ function features(windowSamples) {
 }
 function onMotion(event) {
   if (!active) return;
+  motionEvents++;
+  $("events").textContent = String(motionEvents);
   const a = event.accelerationIncludingGravity;
   const r = event.rotationRate;
-  if (!a || !r || !finite3(a.x, a.y, a.z) || !finite3(r.alpha, r.beta, r.gamma)) {
-    return; // Never invent sensor values.
+  const hasAccel = !!a && finite3(a.x, a.y, a.z);
+  const hasGyro = !!r && finite3(r.alpha, r.beta, r.gamma);
+  if (hasAccel) {
+    accelEvents++;
+    $("accelEvents").textContent = String(accelEvents);
   }
+  if (hasGyro) {
+    gyroEvents++;
+    $("gyroEvents").textContent = String(gyroEvents);
+  }
+  // Keep the separate counters so students can distinguish permission,
+  // accelerometer, and gyroscope problems rather than see only "0".
+  if (!hasAccel || !hasGyro) return;
   const now = performance.now();
   // DeviceMotion rotationRate is degrees/second. Python gyro expects rad/s.
   const RAD = Math.PI / 180;
@@ -120,10 +136,14 @@ function onMotion(event) {
   lastSample = now;
   $("samples").textContent = String(Number($("samples").textContent) + 1);
   if (samples.length > MAX_SAMPLES) samples.shift();
-  if (now - lastPublish < WINDOW_MS || samples.length < MIN_SAMPLES || !connected) return;
+  if (now - lastPublish < WINDOW_MS || samples.length < MIN_SAMPLES) return;
   const processed = features(samples);
+  // Display physical sensor readings even when MQTT cannot connect.
   $("motion").textContent = processed.motion_rms.toFixed(3);
   $("rotation").textContent = processed.rotation_rad.toFixed(3);
+  lastPublish = now;
+  samples = [];
+  if (!connected) return;
   const payload = {
     device_id: role,
     boot_id: bootId,
@@ -135,8 +155,6 @@ function onMotion(event) {
     if (error) log("MQTT publish gagal: " + error.message);
     else $("sent").textContent = String(Number($("sent").textContent) + 1);
   });
-  lastPublish = now;
-  samples = [];
 }
 function stop() {
   active = false;
@@ -191,6 +209,12 @@ async function start(event) {
   bootId = crypto.randomUUID();
   lastSample = 0;
   lastPublish = performance.now();
+  motionEvents = 0;
+  accelEvents = 0;
+  gyroEvents = 0;
+  $("events").textContent = "0";
+  $("accelEvents").textContent = "0";
+  $("gyroEvents").textContent = "0";
   $("samples").textContent = "0";
   $("sent").textContent = "0";
   $("motion").textContent = "—";
@@ -228,8 +252,16 @@ async function start(event) {
   log("Izin sensor diterima; menunggu pembacaan fisik.");
   watcher = setInterval(() => {
     if (!active) return;
-    if (!lastSample || performance.now() - lastSample > 6000) {
-      status("Sensor tidak mengirim accelerometer + gyroscope. Cek dukungan dan izin browser.");
+    if (!motionEvents) {
+      status("0 motion events: cek HTTPS, Chrome > Setelan situs > Sensor gerak, dan browser HP.");
+    } else if (!accelEvents) {
+      status("Event ada, tapi accelerometer tidak valid/tersedia di browser ini.");
+    } else if (!gyroEvents) {
+      status("Accelerometer tersedia, tetapi gyroscope/rotationRate tidak tersedia. Coba Termux:API.");
+    } else if (!lastSample || performance.now() - lastSample > 6000) {
+      status("Pembacaan 2 sensor berhenti. Pertahankan tab tetap aktif.");
+    } else if (!connected) {
+      status("Sensor OK, tetapi MQTT belum tersambung. Periksa broker/WSS.");
     }
   }, 2500);
 }
