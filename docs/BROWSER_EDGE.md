@@ -82,3 +82,9 @@ Di halaman `web-edge/`, lihat empat counter: **Event motion diterima**, **Accele
 - **MQTT sent naik, tapi alarm tidak ada:** periksa apakah Edge 2 dan detector berjalan, aktif (ARM), dan berada pada PROJECT_ID yang sama; cek log detector.
 
 Pertahankan tab di foreground. Beberapa browser membatasi sensor saat tab berpindah atau layar terkunci.
+
+## Sensor Playground (pilih sensor sendiri)
+
+Di halaman yang sama tersedia tombol **Buka Sensor Playground** (atau URL `?mode=playground`). Sensor yang dapat dipilih: accelerometer, gyroscope, orientation, GPS, dan microphone RMS. Pilih topic MQTT sendiri, lalu subscribe memakai MQTTX Web. Tidak perlu membuat project.
+
+Lihat [SENSOR_PLAYGROUND.md](SENSOR_PLAYGROUND.md) untuk penjelasan sensor, izin iOS Safari, format JSON, dan catatan privasi GPS.
