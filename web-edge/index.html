@@ -52,7 +52,7 @@
         <input id="project" value="kelas_iot_kelompok_07" required pattern="[A-Za-z0-9_-]+">
       </label>
       <label>MQTT WebSocket URL
-        <input id="broker" value="wss://broker.hivemq.com:8884/mqtt" required>
+        <input id="broker" value="wss://broker.emqx.io:8084/mqtt" required>
       </label>
       <details>
         <summary>Broker pribadi (opsional)</summary>
@@ -92,8 +92,9 @@
           <input id="pgDevice" value="phone-1" required pattern="[A-Za-z0-9_-]+" autocomplete="off">
         </label>
         <label>MQTT WebSocket URL (WSS)
-          <input id="pgBroker" value="wss://broker.hivemq.com:8884/mqtt" type="url" required>
+          <input id="pgBroker" value="wss://broker.emqx.io:8084/mqtt" type="url" required>
         </label>
+        <p class="muted">EMQX untuk browser: <code>wss://broker.emqx.io:8084/mqtt</code>. Untuk Termux, host <code>broker.emqx.io</code> port <code>1883</code>. Port dan path berbeda!</p>
         <label>MQTT Topic (bebas, harus unik)
           <input id="pgTopic" value="iot/kelas-demo/phone-1/telemetry" required autocomplete="off">
         </label>
@@ -364,6 +365,16 @@ function pgLog(message) {
   $("pgLog").textContent = line + "\n" + $("pgLog").textContent.slice(0, 1500);
 }
 function pgStatus(message) { $("pgStatus").textContent = message; }
+function normalizeMqttWss(value) {
+  const input = value.trim().replace(/\/+$/, "");
+  const defaults = {
+    "wss://broker.emqx.io": "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.emqx.io:8084": "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.hivemq.com": "wss://broker.hivemq.com:8884/mqtt",
+    "wss://broker.hivemq.com:8884": "wss://broker.hivemq.com:8884/mqtt"
+  };
+  return defaults[input.toLowerCase()] || input;
+}
 function pgMotionEvent(event) {
   if (!pgActive) return;
   pgCounts.motion++;
@@ -485,12 +496,31 @@ async function pgStartSender(event) {
   }
   pgDevice = $("pgDevice").value.trim();
   pgTopic = $("pgTopic").value.trim();
-  const broker = $("pgBroker").value.trim();
+  const enteredBroker = $("pgBroker").value.trim();
+  const broker = normalizeMqttWss(enteredBroker);
+  if (broker !== enteredBroker) {
+    $("pgBroker").value = broker;
+    pgLog("URL WSS dilengkapi otomatis: " + broker);
+  }
   if (!/^[A-Za-z0-9_-]+$/.test(pgDevice)) { pgStatus("Device ID tidak valid."); return; }
   if (!pgTopic || !/^[A-Za-z0-9_/-]+$/.test(pgTopic) || pgTopic.startsWith("/")) {
     pgStatus("Topic MQTT tidak valid. Gunakan huruf, angka, _, -, / tanpa wildcard."); return;
   }
-  if (!/^wss:\/\/[^ ]+$/i.test(broker)) { pgStatus("Broker harus memakai wss://"); return; }
+  try {
+    const parsed = new URL(broker);
+    if (parsed.protocol !== "wss:" || !parsed.hostname || parsed.username || parsed.password) {
+      pgStatus("Gunakan WSS URL lengkap, misalnya wss://broker.emqx.io:8084/mqtt");
+      return;
+    }
+    if ((parsed.hostname === "broker.emqx.io" && (parsed.port !== "8084" || parsed.pathname !== "/mqtt")) ||
+        (parsed.hostname === "broker.hivemq.com" && (parsed.port !== "8884" || parsed.pathname !== "/mqtt"))) {
+      pgStatus("Port atau path salah. EMQX: wss://broker.emqx.io:8084/mqtt");
+      return;
+    }
+  } catch (_) {
+    pgStatus("URL broker tidak valid. Contoh: wss://broker.emqx.io:8084/mqtt");
+    return;
+  }
   if ($("pgGps").checked && /broker\.hivemq\.com|broker\.emqx\.io/i.test(broker)) {
     if (!window.confirm("GPS akan mengirim koordinat ke broker MQTT PUBLIK dan bisa dibaca orang lain. Lanjutkan?")) return;
   }
@@ -578,7 +608,11 @@ async function pgStartSender(event) {
     pgLog("Connected to " + broker + " / topic " + pgTopic);
   });
   sessionClient.on("offline", () => { pgConnected = false; if (pgActive) pgStatus("MQTT offline, mencoba reconnect..."); });
-  sessionClient.on("error", (err) => { if (pgActive) pgLog("MQTT error: " + err.message); });
+  sessionClient.on("error", (err) => {
+    if (!pgActive) return;
+    pgStatus("MQTT gagal: " + err.message + ". Cek port/path WSS.");
+    pgLog("MQTT error: " + err.message);
+  });
   pgTimer = setInterval(pgPublish, Number($("pgInterval").value));
   pgLog("Sender started. Sensor yang tidak tersedia tidak akan dipalsukan.");
 }
