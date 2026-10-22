@@ -450,6 +450,11 @@ function pgPublish() {
     }
   });
 }
+function pgLockConfig(running) {
+  ["pgDevice", "pgBroker", "pgTopic", "pgInterval", "pgUsername", "pgPassword",
+   "pgAccel", "pgGyro", "pgOrientation", "pgGps", "pgMic"]
+    .forEach((id) => { $(id).disabled = running; });
+}
 async function pgStopSender() {
   pgActive = false;
   pgConnected = false;
@@ -466,6 +471,7 @@ async function pgStopSender() {
   if (pgClient) { pgClient.end(true); pgClient = null; }
   $("pgStart").disabled = false;
   $("pgStop").disabled = true;
+  pgLockConfig(false);
   pgStatus("Berhenti");
 }
 async function pgStartSender(event) {
@@ -518,6 +524,7 @@ async function pgStartSender(event) {
   $("pgPayload").textContent = "Menunggu data sensor...";
   $("pgStart").disabled = true;
   $("pgStop").disabled = false;
+  pgLockConfig(true);
   pgStatus("Menunggu pembacaan sensor dan koneksi MQTT...");
   if ($("pgAccel").checked || $("pgGyro").checked) {
     if (typeof DeviceMotionEvent !== "undefined") window.addEventListener("devicemotion", pgMotionEvent);
@@ -598,6 +605,7 @@ $("pgCopy").addEventListener("click", async () => {
   }
 });
 window.addEventListener("pagehide", pgStopSender);
+if (params.get("mode") === "playground") pgToggleMode();
 
 </script>
 </body>
