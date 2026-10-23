@@ -11,7 +11,7 @@ Klik **Buka Sensor Playground** pada halaman yang sama, atau buka URL dengan `?m
 - Pilih sensor: **accelerometer, gyroscope, orientation, GPS, microphone RMS** (sesuai kemampuan browser).
 - Isi **Device ID**, alamat **MQTT broker WSS** dan **topic** yang kamu inginkan.
 - Klik **Start sensor sender**; Safari iPhone atau Chrome Android akan meminta izin jika dibutuhkan.
-- Lihat **JSON sensor real-time**, lalu pakai MQTTX untuk subscribe ke topic yang sama.
+- Lihat **JSON sensor real-time**, lalu pakai MQTTX / procecing lainnya untuk subscribe ke topic yang sama.
 - Tombol **Kembali ke PocketGuard** mengembalikan tampilan semula.
 
 Tidak perlu Termux, QR pairing, flow builder, atau registrasi proyek. Ini **mode sensor umum**, terpisah dari deteksi pencurian PocketGuard. GPS default off; jangan kirim lokasi pribadi ke broker publik.
