@@ -22,7 +22,7 @@ Tidak perlu Termux, QR pairing, flow builder, atau registrasi proyek. Ini **mode
 
 ```mermaid
 flowchart LR
-  subgraph WIFI["Satu Wi-Fi / hotspot"]
+  subgraph WIFI["node"]
     A["HP A · Edge 1<br/>Sensor gerakan"]
     B["HP B · Edge 2<br/>Sensor gerakan + alarm"]
     L["Laptop · Detector<br/>localhost:8000"]
