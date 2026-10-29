@@ -14,6 +14,7 @@ class Telemetry:
     sent_at_ms: int
     motion_rms: float
     rotation_rad: float
+    audio_rms: float = 0.0
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
@@ -34,24 +35,61 @@ class Telemetry:
             raise ValueError("Invalid sequence")
         if type(timestamp) is not int or timestamp < 0:
             raise ValueError("Invalid timestamp")
+
         features = []
         for key in ("motion_rms", "rotation_rad"):
             number = value.get(key)
             if type(number) not in (float, int) or not math.isfinite(number) or number < 0:
                 raise ValueError(f"Invalid {key}")
             features.append(float(number))
-        return Telemetry(value["device_id"], value["boot_id"], sequence, timestamp, *features)
+
+        raw_audio = value.get("audio_rms", 0.0)
+        if type(raw_audio) not in (float, int) or not math.isfinite(raw_audio) or raw_audio < 0:
+            raise ValueError("Invalid audio_rms")
+        audio_rms = float(raw_audio)
+
+        return Telemetry(
+            value["device_id"],
+            value["boot_id"],
+            sequence,
+            timestamp,
+            features[0],
+            features[1],
+            audio_rms,
+        )
 
     @staticmethod
-    def make(device_id: str, boot_id: str, sequence: int, motion_rms: float, rotation_rad: float) -> "Telemetry":
-        return Telemetry(device_id, boot_id, sequence, int(time.time() * 1000), motion_rms, rotation_rad)
+    def make(
+        device_id: str,
+        boot_id: str,
+        sequence: int,
+        motion_rms: float,
+        rotation_rad: float,
+        audio_rms: float = 0.0,
+    ) -> "Telemetry":
+        return Telemetry(
+            device_id,
+            boot_id,
+            sequence,
+            int(time.time() * 1000),
+            motion_rms,
+            rotation_rad,
+            audio_rms,
+        )
 
 
-def status_json(status: str, reason: str, armed: bool, score: float = 0.0,
-                device_id: str | None = None, sequence: int | None = None,
-                now_ms: int | None = None) -> str:
+def status_json(
+    status: str,
+    reason: str,
+    armed: bool,
+    score: float = 0.0,
+    device_id: str | None = None,
+    sequence: int | None = None,
+    audio_rms: float | None = None,
+    now_ms: int | None = None,
+) -> str:
     """Latest detector decision, published (retained) for the dashboard."""
-    return json.dumps({
+    payload = {
         "status": status,
         "reason": reason,
         "armed": armed,
@@ -59,4 +97,7 @@ def status_json(status: str, reason: str, armed: bool, score: float = 0.0,
         "device_id": device_id,
         "sequence": sequence,
         "at_ms": now_ms if now_ms is not None else int(time.time() * 1000),
-    })
+    }
+    if audio_rms is not None:
+        payload["audio_rms"] = round(float(audio_rms), 4)
+    return json.dumps(payload)

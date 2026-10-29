@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PocketGuard Dashboard</title>
+<title>Smart Baby Monitor — PocketGuard Dashboard</title>
 <!-- MQTT.js: client MQTT di browser lewat WebSocket (wss://) -->
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
 <style>
@@ -39,9 +39,9 @@
   form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
   label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
   input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 100%; }
-  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
-           background: var(--bg); color: var(--text); cursor: pointer; }
-  button.primary { background: var(--edge1); border-color: var(--edge1); color: #fff; }
+  button, a.btn-link { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--bg); color: var(--text); cursor: pointer; text-decoration: none; display: inline-block; }
+  button.primary, a.btn-link.primary { background: var(--edge1); border-color: var(--edge1); color: #fff; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   #status-text { font-size: 32px; font-weight: 700; margin: 4px 0; padding: 4px 16px; border-radius: 10px; display: inline-block; }
@@ -60,18 +60,24 @@
 <body>
 <main>
   <header>
-    <h1>PocketGuard Dashboard</h1>
-    <span id="conn" class="pill off" role="status">Belum terhubung</span>
+    <div>
+      <h1>Smart Dual-Zone Baby Monitor Dashboard</h1>
+      <span class="muted">Motion (Accelerometer + Gyroscope) &amp; Audio Amplitude (audio_rms)</span>
+    </div>
+    <div class="row">
+      <a class="btn-link primary" href="/edge?role=edge1" target="_blank">Buka Sensor Edge 1 (Browser)</a>
+      <a class="btn-link" href="/edge?role=edge2" target="_blank">Buka Sensor Edge 2 (Browser)</a>
+      <span id="conn" class="pill off" role="status">Belum terhubung</span>
+    </div>
   </header>
 
   <details class="card" id="settings" open>
     <summary>Koneksi broker (MQTT over WebSocket)</summary>
-    <p class="muted">Browser tidak bisa memakai MQTT TCP port 8883, jadi dashboard memakai <b>WebSocket over TLS</b>.
-      Broker publik HiveMQ: <code>wss://broker.hivemq.com:8884/mqtt</code>, username dan password dikosongkan.
-      Password tidak disimpan.</p>
+    <p class="muted">Browser memakai <b>WebSocket over TLS</b>.
+      Broker publik HiveMQ: <code>wss://broker.hivemq.com:8884/mqtt</code>, username dan password dikosongkan.</p>
     <form id="conn-form">
       <label>WebSocket URL <input id="url" value="wss://broker.hivemq.com:8884/mqtt" required></label>
-      <label>PROJECT_ID (sama dengan .env) <input id="project" placeholder="kelas_iot_kelompok_07" required></label>
+      <label>PROJECT_ID (sama dengan .env) <input id="project" placeholder="iot_kelompok_07" required></label>
       <label>Username <input id="username" autocomplete="username"></label>
       <label>Password <input id="password" type="password" autocomplete="current-password"></label>
       <div class="row">
@@ -82,7 +88,7 @@
   </details>
 
   <section class="card" aria-labelledby="h-status">
-    <h2 id="h-status">Status detector</h2>
+    <h2 id="h-status">Status Kamar Bayi (Decision Engine)</h2>
     <div id="status-text" class="off">—</div>
     <p id="status-reason" class="muted">Menunggu pesan dari topic status…</p>
     <div class="row">
@@ -94,21 +100,23 @@
 
   <div class="grid">
     <section class="card" aria-labelledby="h-edge1">
-      <h2 id="h-edge1">Edge 1 · HP dijaga</h2>
+      <h2 id="h-edge1">Edge 1 · Baby Node (Kasur Bayi)</h2>
       <span id="edge1-state" class="pill off">Belum ada data</span>
       <dl>
-        <dt>Getaran (RMS)</dt><dd id="edge1-motion">—</dd>
-        <dt>Rotasi</dt><dd id="edge1-rotation">—</dd>
+        <dt>Getaran Kasur (motion_rms)</dt><dd id="edge1-motion">—</dd>
+        <dt>Rotasi (rotation_rad)</dt><dd id="edge1-rotation">—</dd>
+        <dt>Suara / Tangisan (audio_rms)</dt><dd id="edge1-audio">—</dd>
         <dt>Pesan #</dt><dd id="edge1-seq">—</dd>
         <dt>Terakhir</dt><dd id="edge1-seen">—</dd>
       </dl>
     </section>
     <section class="card" aria-labelledby="h-edge2">
-      <h2 id="h-edge2">Edge 2 · HP pemilik</h2>
+      <h2 id="h-edge2">Edge 2 · Parent Node (Orang Tua)</h2>
       <span id="edge2-state" class="pill off">Belum ada data</span>
       <dl>
-        <dt>Getaran (RMS)</dt><dd id="edge2-motion">—</dd>
-        <dt>Rotasi</dt><dd id="edge2-rotation">—</dd>
+        <dt>Getaran (motion_rms)</dt><dd id="edge2-motion">—</dd>
+        <dt>Rotasi (rotation_rad)</dt><dd id="edge2-rotation">—</dd>
+        <dt>Audio (audio_rms)</dt><dd id="edge2-audio">—</dd>
         <dt>Pesan #</dt><dd id="edge2-seq">—</dd>
         <dt>Terakhir</dt><dd id="edge2-seen">—</dd>
       </dl>
@@ -116,17 +124,17 @@
   </div>
 
   <section class="card" aria-labelledby="h-chart">
-    <h2 id="h-chart">Getaran (motion RMS, m/s²) — 60 pesan terakhir</h2>
+    <h2 id="h-chart">Getaran Kasur (motion_rms, m/s²) — 60 pesan terakhir</h2>
     <div class="legend">
-      <span><span class="swatch" style="background:var(--edge1)"></span>Edge 1 (dijaga)</span>
-      <span><span class="swatch" style="background:var(--edge2)"></span>Edge 2 (pemilik)</span>
-      <span><span class="swatch" style="background:var(--threshold)"></span>Ambang bergerak (0,7)</span>
+      <span><span class="swatch" style="background:var(--edge1)"></span>Edge 1 (Baby Node)</span>
+      <span><span class="swatch" style="background:var(--edge2)"></span>Edge 2 (Parent Node)</span>
+      <span><span class="swatch" style="background:var(--threshold)"></span>Ambang Gelisah (0,45)</span>
     </div>
     <canvas id="chart" role="img" aria-label="Grafik garis getaran Edge 1 dan Edge 2"></canvas>
   </section>
 
   <section class="card" aria-labelledby="h-alerts">
-    <h2 id="h-alerts">Riwayat alert</h2>
+    <h2 id="h-alerts">Riwayat Alert Darurat (CRYING_AWAKE)</h2>
     <table>
       <thead><tr><th>Waktu</th><th>Risk</th><th>Alasan</th></tr></thead>
       <tbody id="alerts"><tr><td colspan="3" class="muted">Belum ada alert.</td></tr></tbody>
@@ -139,13 +147,17 @@
 <script>
 "use strict";
 // Sama dengan nodes/detector_service/rules.py
-const MOTION_THRESHOLD = 0.7;
-const ROTATION_THRESHOLD = 0.25;
+const MOTION_THRESHOLD = 0.45;
+const ROTATION_THRESHOLD = 0.20;
+const AUDIO_NOISE_THRESHOLD = 0.15;
 const OFFLINE_AFTER_MS = 10000;
 const MAX_POINTS = 60;
 const STATUS_CLASS = {
-  ALERT: "bad", NORMAL: "ok", ARMED: "ok", COMMON_MOTION: "warn", REFERENCE_OLD: "warn",
-  REJECTED_REPLAY: "warn", REJECTED_STALE: "warn", WAITING: "info", ONLINE: "info",
+  CRYING_AWAKE: "bad", ALERT: "bad",
+  SLEEPING_SOUNDLY: "ok", NORMAL: "ok", ARMED: "ok",
+  RESTLESS_BABY: "warn", CROWD_NOISE: "warn",
+  REJECTED_REPLAY: "warn", REJECTED_STALE: "warn",
+  WAITING: "info", ONLINE: "info",
   DISARMED: "off", OFFLINE: "off",
 };
 
@@ -160,22 +172,20 @@ function setPill(el, text, cls) { el.textContent = text; el.className = el.class
 function fmt(n, digits = 3) { return typeof n === "number" && isFinite(n) ? n.toFixed(digits) : "—"; }
 function clock(ms) { return new Date(ms).toLocaleTimeString("id-ID"); }
 
-// ---------- simpan pengaturan (tanpa password) ----------
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem("pocketguard-dashboard") || "{}");
     for (const key of ["url", "project", "username"]) if (saved[key]) $(key).value = saved[key];
-  } catch (e) { /* localStorage tidak tersedia: abaikan */ }
+  } catch (e) {}
 }
 function saveSettings() {
   try {
     localStorage.setItem("pocketguard-dashboard", JSON.stringify({
       url: $("url").value.trim(), project: $("project").value.trim(), username: $("username").value.trim(),
     }));
-  } catch (e) { /* abaikan */ }
+  } catch (e) {}
 }
 
-// ---------- MQTT ----------
 function connect(event) {
   event.preventDefault();
   const url = $("url").value.trim();
@@ -240,7 +250,6 @@ function onMessage(topic, payload) {
   if (match && data.device_id === match[1]) updateEdge(match[1], data);
 }
 
-// ---------- tampilan ----------
 function renderStatus(data) {
   const status = String(data.status || "?");
   const el = $("status-text");
@@ -252,13 +261,14 @@ function renderStatus(data) {
 }
 
 function updateEdge(id, data) {
-  const motion = Number(data.motion_rms), rotation = Number(data.rotation_rad);
-  edges[id] = { motion, rotation, seq: data.sequence, receivedAt: Date.now() };
+  const motion = Number(data.motion_rms), rotation = Number(data.rotation_rad), audio = Number(data.audio_rms ?? 0);
+  edges[id] = { motion, rotation, audio, seq: data.sequence, receivedAt: Date.now() };
   $(`${id}-motion`).textContent = `${fmt(motion)} m/s²`;
   $(`${id}-rotation`).textContent = `${fmt(rotation)} rad`;
+  $(`${id}-audio`).textContent = `${fmt(audio, 3)}`;
   $(`${id}-seq`).textContent = String(data.sequence ?? "—");
-  const moving = motion >= MOTION_THRESHOLD || rotation >= ROTATION_THRESHOLD;
-  setPill($(`${id}-state`), moving ? "Bergerak" : "Diam", moving ? "warn" : "ok");
+  const active = motion >= MOTION_THRESHOLD || rotation >= ROTATION_THRESHOLD || audio >= AUDIO_NOISE_THRESHOLD;
+  setPill($(`${id}-state`), active ? "Aktif / Bersuara" : "Tenang", active ? "warn" : "ok");
 
   series[id].push(motion);
   if (series[id].length > MAX_POINTS) series[id].shift();
@@ -338,8 +348,6 @@ $("disarm-btn").addEventListener("click", () => sendControl("DISARM"));
 window.addEventListener("resize", drawChart);
 loadSettings();
 
-// When opened through "python detector.py", the local HTTP server provides
-// only PUBLIC configuration. Broker username/password never leave the laptop.
 async function applyLocalConfig() {
   try {
     const response = await fetch("/config.json", { cache: "no-store" });
@@ -356,9 +364,7 @@ async function applyLocalConfig() {
       $("settings").open = true;
       setPill($("conn"), "Atur kredensial browser MQTT", "info");
     }
-  } catch (_) {
-    // Opened as a standalone static HTML file: manual form still works.
-  }
+  } catch (_) {}
 }
 applyLocalConfig();
 drawChart();

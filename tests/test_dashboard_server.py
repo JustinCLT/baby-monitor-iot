@@ -22,6 +22,9 @@ class DashboardServerTests(TestCase):
                 with urlopen(url + "/") as result:
                     self.assertEqual(result.status, 200)
                     self.assertIn(b"PocketGuard Dashboard", result.read())
+                with urlopen(url + "/edge") as result:
+                    self.assertEqual(result.status, 200)
+                    self.assertIn(b"Smart Baby Monitor", result.read())
                 with urlopen(url + "/config.json") as result:
                     self.assertEqual(result.status, 200)
                     config = json.loads(result.read())

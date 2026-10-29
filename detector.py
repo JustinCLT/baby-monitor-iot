@@ -1,4 +1,4 @@
-"""NODE 3 — Laptop: MQTT detector + browser dashboard.
+"""NODE 3 — Laptop: Smart Dual-Zone Baby Monitor MQTT detector + browser dashboard.
 
 Run: python detector.py
 Open the printed http://localhost:8000 link on this laptop.
@@ -18,10 +18,11 @@ def run():
             "Tutup aplikasi lain di port ini atau set DASHBOARD_PORT di .env."
         ) from exc
 
-    print("\nPocketGuard — NODE 3 / Laptop", flush=True)
-    print(f"[DASHBOARD] Buka di laptop: {url}", flush=True)
-    print(f"[CONFIG] PROJECT_ID: {project_id()}", flush=True)
-    print("[DETECTOR] Menunggu Edge 1 dan Edge 2 dari MQTT Cloud...\n", flush=True)
+    print("\nSmart Dual-Zone Baby Monitor & Restlessness/Cry Guard — NODE 3 / Laptop", flush=True)
+    print(f"[DASHBOARD] Buka Dashboard di browser : {url}", flush=True)
+    print(f"[WEB-EDGE]  Buka Sensor Online (Tanpa Termux) : {url}/edge", flush=True)
+    print(f"[CONFIG]    PROJECT_ID: {project_id()}", flush=True)
+    print("[BABY-DETECTOR] Menunggu Baby Node (edge1) dan Parent Node (edge2) dari MQTT Cloud...\n", flush=True)
     try:
         main()
     finally:
