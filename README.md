@@ -1,117 +1,55 @@
-# PocketGuard IoT
+# Smart Dual-Zone Baby Monitor & Restlessness/Cry Guard
 
-Contoh proyek IoT untuk belajar: **2 HP sebagai edge**, **accelerometer + gyroscope**, **2 proses pengolahan data**, **MQTT Cloud**, dan **dashboard di laptop**. Data berasal dari sensor fisik — bukan simulator.
+Sistem IoT pemantauan bayi berbasis **2 Edge Device** (Baby Node & Parent Node) dan **1 Central Detector + Web Dashboard** melalui **MQTT Cloud** (`broker.hivemq.com`).
 
-![Dashboard PocketGuard](docs/img/dashboard.png)
+## Arsitektur & Kebutuhan Sistem
 
-## Sensor Playground (mode baru, tanpa membuat project)
+1. **Edge Devices (2 Nodes)**:
+   - **Edge 1 (`Baby Node`)**: Diletakkan di dekat kasur/bayi. Memantau getaran kasur (kegelisahan fisik) dan amplitudo audio lingkungan (suara tangisan bayi).
+   - **Edge 2 (`Parent Node`)**: Dipegang orang tua di ruangan lain. Menerima notifikasi darurat (getar/suara via Browser atau Termux) dan memantau status kamar bayi.
+2. **Sensor yang Digunakan**:
+   - **Motion Sensor**: Accelerometer & Gyroscope (mengukur getaran fisik/aktivitas di kasur).
+   - **Audio Sensor**: Microphone / Audio Amplitude (`audio_rms` — mengukur level suara/amplitudo tangisan bayi).
+3. **Data Processing di Sisi Edge (`shared/processing.py` & `web-edge/index.html`)**:
+   - **Processing A (Motion)**: Root Mean Square (`motion_rms`) dari deviasi percepatan linier terhadap gravitasi bumi ($9.81\text{ m/s}^2$) serta integrasi rotasi sudut giroskop (`rotation_rad`).
+   - **Processing B (Audio)**: Audio RMS / Short-Time Energy (`audio_rms`) untuk mengukur volume kebisingan dan tangisan dalam satu window waktu.
+4. **Central Detector / Decision Engine (`nodes/detector_service/rules.py`)**:
+   - **`SLEEPING_SOUNDLY`**: Audio hening (`audio_rms` rendah), kasur tenang (`motion_rms` rendah).
+   - **`RESTLESS_BABY`**: Audio tenang, tetapi getaran kasur meningkat (bayi bolak-balik posisi atau merangkak tanpa menangis).
+   - **`CRYING_AWAKE`**: Audio keras melampaui ambang batas tangisan (`audio_rms` tinggi) ATAU gabungan audio keras + getaran kasur tinggi (memicu alarm darurat di Edge 2).
+   - **`CROWD_NOISE`**: Audio tinggi sesaat tapi tidak ada getaran kasur (misal suara pintu tertutup dari luar kamar).
+   - Dilengkapi validasi keamanan **anti-stale timestamp** ($< 30\text{ detik}$) dan **anti-replay sequence number**.
 
-Klik **Buka Sensor Playground** pada halaman yang sama, atau buka URL dengan `?mode=playground`.
+---
 
-- Pilih sensor: **accelerometer, gyroscope, orientation, GPS, microphone RMS** (sesuai kemampuan browser).
-- Isi **Device ID**, alamat **MQTT broker WSS** dan **topic** yang kamu inginkan.
-- Klik **Start sensor sender**; Safari iPhone atau Chrome Android akan meminta izin jika dibutuhkan.
-- Lihat **JSON sensor real-time**, lalu pakai MQTTX / procecing lainnya untuk subscribe ke topic yang sama.
-- Tombol **Kembali ke PocketGuard** mengembalikan tampilan semula.
+## Cara Menjalankan
 
-Tidak perlu Termux, QR pairing, flow builder, atau registrasi proyek. Ini **mode sensor umum**, terpisah dari deteksi pencurian PocketGuard. GPS default off; jangan kirim lokasi pribadi ke broker publik.
-
-[**Panduan lengkap Sensor Playground**](docs/SENSOR_PLAYGROUND.md)
-
-## Cara kerja
-
-```mermaid
-flowchart LR
-  subgraph WIFI["node"]
-    A["HP A · Edge 1<br/>Sensor gerakan"]
-    B["HP B · Edge 2<br/>Sensor gerakan + alarm"]
-    L["Laptop · Detector<br/>localhost:8000"]
-  end
-  A -->|MQTT| M["Broker MQTT Cloud"]
-  B -->|MQTT| M
-  M -->|Telemetry| L
-  L -->|Alert| M
-  M -->|Alert| B
-```
-
-HP A bergerak sedangkan HP B diam → detector mengirim **ALERT**. Kedua HP bergerak bersamaan → `COMMON_MOTION`.
-
-## 1. Laptop — jalankan detector & dashboard
-
-Pastikan sudah ada **Python 3.10+** dan internet.
-
+### 1. Laptop — Jalankan Central Detector & Dashboard
 ```bash
-git clone https://github.com/myudak/contoh-project-iot1.git
-cd contoh-project-iot1
 python -m pip install -r requirements.txt
-```
-
-Buat konfigurasi dari `.env.example`:
-
-```bash
 cp .env.example .env
-```
-
-*Di Windows PowerShell, gunakan `Copy-Item .env.example .env`.*
-
-Ganti `PROJECT_ID` di `.env` menjadi nama kelompok yang unik, misalnya `iot_kelompok_07`. Default memakai broker publik HiveMQ (tanpa akun, **jangan kirim data rahasia**).
-
-```bash
 python detector.py
 ```
+- Buka Dashboard di **`http://localhost:8000`**.
+- Buka Halaman Sensor Browser (Tanpa Termux) di **`http://localhost:8000/edge`**.
 
-Buka **http://localhost:8000** di laptop. Dashboard otomatis membaca konfigurasi broker publik dan PROJECT_ID dari laptop.
+### 2. Menjalankan Edge 1 & Edge 2
 
-## 2. HP A dan HP B — pilih salah satu cara
+#### Opsi A: Via Browser Online (Tanpa Termux)
+1. Buka `http://localhost:8000/edge` (atau deploy folder `web-edge/` ke Netlify Drop / GitHub Pages untuk akses HTTPS di 2 HP).
+2. Pilih **Edge 1 — Baby Node** di HP 1 dan **Edge 2 — Parent Node** di HP 2.
+3. Samakan `PROJECT_ID` dengan file `.env`, lalu tekan **Mulai Jalankan Node** dan izinkan akses Microphone & Motion Sensor.
 
-### Opsi A: Browser HP (tanpa Termux)
-
-1. Publish folder `web-edge/` ke **hosting HTTPS** (contohnya Netlify Drop atau GitHub Pages). Buka link HTTPS tersebut di **dua HP**.
-2. Pilih **Edge 1** di HP A, **Edge 2** di HP B.
-3. Isi `PROJECT_ID` sama persis dengan di laptop.
-4. Tekan **Mulai membaca sensor**, lalu berikan izin gerak jika diminta.
-
-Browser akan memproses data accelerometer + gyroscope dan mengirimnya lewat **MQTT over WebSocket**. Perangkat harus mendukung `DeviceMotionEvent` dan memberi data gyroscope; jika tidak tersedia, gunakan Opsi B.
-
-**[Panduan browser & hosting HTTPS →](docs/BROWSER_EDGE.md)**
-
-### Opsi B: Termux + Python pada 2 HP Android
-
-Pada kedua HP: install Termux + Termux:API, clone repo, install dependensi, lalu samakan `PROJECT_ID` dengan laptop.
-
-**HP A:**
+#### Opsi B: Via Python CLI / Simulator / Termux
 ```bash
-python hp_dijaga.py
+# Edge 2 (Parent Node)
+python hp_pemilik.py --source simulator --scenario sleeping
+
+# Edge 1 (Baby Node) - pilih skenario: sleeping | restless | crowd_noise | crying_awake
+python hp_dijaga.py --source simulator --scenario crying_awake
 ```
 
-**HP B:**
+### 3. Menjalankan Unit Tests
 ```bash
-python hp_pemilik.py
+python -m unittest discover -s tests -v
 ```
-
-Jalankan di **dua HP fisik**, bukan dua terminal laptop. **[Panduan Termux →](docs/ANDROID.md)**
-
-## 3. Coba sistemnya
-
-Letakkan kedua HP di meja yang sama. Saat HP A diangkat dan HP B diam, dashboard berubah menjadi `ALERT`. Pada HP B, notifikasi/getar tersedia lewat Termux; pada opsi browser tampil alert di halaman dan getar jika browser mendukungnya.
-
-**Semua perangkat harus berada dalam satu Wi-Fi/hotspot dan terhubung internet.** Dashboard `localhost` hanya di laptop. Simulator masih ada untuk debugging, tetapi **tidak dihitung sebagai edge fisik**.
-
-## Pelajari kodenya
-
-- `detector.py` → NODE 3 (laptop + localhost dashboard)
-- `hp_dijaga.py` → NODE 1 (sensor HP A lewat Termux)
-- `hp_pemilik.py` → NODE 2 (sensor HP B + alarm)
-- `web-edge/index.html` → alternatif NODE 1 / NODE 2 via browser
-- `shared/processing.py` → dua data processing (RMS dan rotasi)
-- `nodes/detector_service/rules.py` → algoritma sensor fusion
-
-Dokumentasi: [Arsitektur](docs/ARCHITECTURE.md) · [MQTT](docs/SETUP.md) · [Algoritma](docs/LEARNING.md) · [Dashboard](docs/DASHBOARD.md) · [Security](docs/SECURITY.md).
-
-> Proyek pembelajaran, bukan sistem anti-pencurian produksi. Perangkat/browser bisa memiliki sensor atau izin yang berbeda. Broker publik tidak menyediakan autentikasi/ACL untuk topik kelompok.
-
-### HP tidak terdeteksi bergerak?
-
-- **Browser:** cek indikator event motion, accelerometer, gyroscope, dan jumlah pesan MQTT pada halaman. Ikuti [debug browser](docs/BROWSER_EDGE.md).
-- **Termux:** jalankan `python -m scripts.check_sensors` sebelum menyalakan broker dan `python hp_dijaga.py --debug-sensors` untuk mencetak data mentah. Ikuti [debug Android](docs/ANDROID.md).
-- Alarm hanya muncul bila kedua edge + detector berjalan, proyek/namespace MQTT sama, dan HP A bergerak sementara HP B relatif diam.

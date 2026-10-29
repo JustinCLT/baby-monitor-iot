@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Smart Baby Monitor · Browser Edge (Tanpa Termux)</title>
+  <title>Smart Baby Monitor · Browser Edge (Motion + Audio RMS)</title>
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -95,6 +95,19 @@
       color: #1d4ed8;
       border: 1px solid #bfdbfe;
     }
+    .meter-bar {
+      height: 12px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: #1458a8;
+      transition: width 0.1s ease;
+    }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -102,15 +115,15 @@
 <main>
   <h1>Smart Baby Monitor · HP Edge (Online)</h1>
   <p class="muted">
-    Gunakan browser HP langsung sebagai <strong>Edge 1 (Baby Node)</strong> atau <strong>Edge 2 (Parent Node)</strong> <strong>tanpa perlu install Termux</strong>.
-    Mendukung sensor gerak fisik (Accelerometer + Gyroscope), sensor cahaya (Ambient Light API / Kamera Otomatis / Slider), dan alarm getar + suara darurat.
+    Gunakan browser HP langsung sebagai <strong>Edge 1 (Baby Node)</strong> atau <strong>Edge 2 (Parent Node)</strong> <strong>tanpa Termux</strong>.
+    Membaca <strong>Motion Sensor (Accelerometer + Gyroscope)</strong> untuk getaran kasur dan <strong>Audio Sensor (Microphone Audio RMS)</strong> untuk mendeteksi suara tangisan bayi.
   </p>
 
   <section class="card">
     <form id="setup">
       <label>Peran Perangkat (Node)
         <select id="role">
-          <option value="edge1">Edge 1 — Baby Node (Ditaruh di Kasur Bayi)</option>
+          <option value="edge1">Edge 1 — Baby Node (Dekat Kasur Bayi · Sensor Gerak + Mic)</option>
           <option value="edge2">Edge 2 — Parent Node (Dipegang Orang Tua · Terima Alarm)</option>
         </select>
       </label>
@@ -127,29 +140,35 @@
         <button type="button" id="presetEmqx">EMQX Public</button>
       </div>
 
-      <label>Sumber Sensor Cahaya (Ambient Light Lux)
-        <select id="lightSource">
-          <option value="auto">Otomatis (Sensor Cahaya Browser / Slider)</option>
-          <option value="camera">Kamera HP Otomatis (Ukur Kecerahan Kamar Asli)</option>
-          <option value="manual">Slider Manual di Layar</option>
+      <label>Sumber Sensor Audio (Microphone / Tangisan Bayi)
+        <select id="audioSource">
+          <option value="mic">Microphone Asli (Web Audio API — Real-time Audio RMS)</option>
+          <option value="manual">Slider Audio Manual (Untuk Tes Tanpa Suara)</option>
         </select>
       </label>
 
-      <label id="manualLuxWrap">Cahaya Kamar Saat Ini: <span id="luxSliderVal">3.0</span> lux
-        <input id="luxSlider" type="range" min="0" max="250" step="1" value="3">
-        <span class="muted">Geser &lt; 35 lux untuk kamar redup (tidur), atau &ge; 35 lux untuk tes <b>LIGHT_ON</b>.</span>
+      <div>
+        <div class="muted" style="display:flex;justify-content:space-between">
+          <span>Level Amplitudo Audio Saat Ini (audio_rms):</span>
+          <strong id="audioLiveVal">0.000</strong>
+        </div>
+        <div class="meter-bar"><div class="meter-fill" id="audioMeter"></div></div>
+      </div>
+
+      <label id="manualAudioWrap" hidden>Slider Uji Audio RMS: <span id="audioSliderVal">0.02</span>
+        <input id="audioSlider" type="range" min="0" max="1" step="0.01" value="0.02">
+        <span class="muted">&lt; 0.15 = Hening | 0.15–0.44 = Bising Luar (CROWD_NOISE) | &ge; 0.45 = Tangisan Keras (CRYING_AWAKE)</span>
       </label>
 
       <details style="margin-top:8px">
-        <summary class="muted" style="cursor:pointer;font-weight:600">Simulasi Gerakan Cepat (Jika HP ditaruh di meja / tes tanpa goyang fisik)</summary>
-        <p class="muted">Secara default halaman membaca <strong>sensor gerak fisik HP</strong>. Jika ingin menguji skenario dari tombol layar, pilih mode uji di bawah:</p>
-        <label>Mode Sumber Gerak
-          <select id="motionMode">
-            <option value="physical">Sensor Fisik HP Asli (DeviceMotion Accelerometer + Gyroscope)</option>
-            <option value="sim_sleeping">Simulasi Online: Bayi Tidur Lelap (NORMAL)</option>
-            <option value="sim_restless">Simulasi Online: Bayi Gelisah (RESTLESS)</option>
-            <option value="sim_crying">Simulasi Online: Bayi Bangun / Menangis (ALERT)</option>
-            <option value="sim_light_on">Simulasi Online: Lampu Kamar Menyala (LIGHT_ON)</option>
+        <summary class="muted" style="cursor:pointer;font-weight:600">Mode Simulasi Skenario Cepat (Jika uji coba dari layar tanpa goyang fisik)</summary>
+        <label>Mode Sumber Sensor
+          <select id="sensorMode">
+            <option value="physical">Sensor Fisik Asli (Microphone + DeviceMotion)</option>
+            <option value="sim_sleeping">Simulasi Online: SLEEPING_SOUNDLY (Kasur Tenang + Audio Hening)</option>
+            <option value="sim_restless">Simulasi Online: RESTLESS_BABY (Kasur Bergetar + Audio Tenang)</option>
+            <option value="sim_crying">Simulasi Online: CRYING_AWAKE (Audio Tangisan Keras + Getaran Kasur)</option>
+            <option value="sim_crowd">Simulasi Online: CROWD_NOISE (Audio Tinggi Sesaat + Kasur Diam)</option>
           </select>
         </label>
       </details>
@@ -170,7 +189,7 @@
   <section class="card">
     <div class="status-banner" id="status" role="status">Belum berjalan</div>
     <div class="status-banner bad" id="alertBanner" hidden>
-      🚨 DARURAT (ALERT): <span id="alertReason">Bayi terbangun / menangis aktif!</span>
+      🚨 DARURAT (CRYING_AWAKE): <span id="alertReason">Bayi menangis / terbangun!</span>
       <div class="btn-row" style="margin-top:8px">
         <button type="button" id="muteAlarmBtn" class="danger">Matikan Bunyi Alarm</button>
       </div>
@@ -178,13 +197,14 @@
 
     <dl>
       <dt>Status Keputusan Detector</dt><dd id="detectorStatus">—</dd>
+      <dt>Status Microphone</dt><dd id="micState">Belum aktif</dd>
       <dt>Event motion diterima</dt><dd id="events">0</dd>
       <dt>Accelerometer tersedia</dt><dd id="accelEvents">0</dd>
       <dt>Gyroscope tersedia</dt><dd id="gyroEvents">0</dd>
       <dt>Sampel window valid</dt><dd id="samples">0</dd>
-      <dt>Getaran kasur (motion RMS)</dt><dd id="motion">—</dd>
-      <dt>Rotasi terintegrasi (rad)</dt><dd id="rotation">—</dd>
-      <dt>Cahaya kamar (light lux)</dt><dd id="lightLux">—</dd>
+      <dt>Processing A · Getaran (motion_rms)</dt><dd id="motion">—</dd>
+      <dt>Processing A · Rotasi (rotation_rad)</dt><dd id="rotation">—</dd>
+      <dt>Processing B · Audio (audio_rms)</dt><dd id="audioRms">—</dd>
       <dt>Pesan MQTT terkirim</dt><dd id="sent">0</dd>
     </dl>
 
@@ -198,10 +218,6 @@
   </section>
 </main>
 
-<!-- Video & Canvas tersembunyi untuk estimasi cahaya kamar dari kamera jika dipilih -->
-<video id="camVideo" playsinline muted hidden></video>
-<canvas id="camCanvas" width="32" height="32" hidden></canvas>
-
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -211,10 +227,12 @@ const MIN_SAMPLES = 3;
 const MAX_SAMPLES = 250;
 
 let client = null, active = false, connected = false, samples = [];
-let sequence = 0, bootId = "", lastPublish = 0, lastSample = 0;
+let sequence = 0, bootId = "", lastPublish = 0;
 let motionEvents = 0, accelEvents = 0, gyroEvents = 0;
-let project = "", role = "", watcher = null, simTimer = null;
-let currentLux = 3.0, ambientSensor = null, camStream = null, camTimer = null;
+let project = "", role = "", simTimer = null, physicalTimer = null;
+let micStream = null, micAudioCtx = null, micAnalyser = null, micTimer = null;
+let currentAudioRms = 0.02;
+let latestAccel = [0, 0, GRAVITY], latestGyro = [0, 0, 0], lastMotionEventAt = 0;
 let alarmAudioCtx = null, alarmTimer = null;
 
 function log(message) {
@@ -243,20 +261,36 @@ function normalizeMqttWss(value) {
   return defaults[input.toLowerCase()] || input;
 }
 
-// ---------- Preset Broker & Slider Cahaya ----------
+function updateAudioMeter(val) {
+  currentAudioRms = Math.max(0, Math.min(1, val));
+  $("audioLiveVal").textContent = currentAudioRms.toFixed(3);
+  const pct = Math.min(100, Math.round(currentAudioRms * 140));
+  $("audioMeter").style.width = pct + "%";
+  $("audioMeter").style.background = currentAudioRms >= 0.45 ? "#dc2626" : (currentAudioRms >= 0.15 ? "#d97706" : "#1458a8");
+}
+
+// ---------- Preset Broker & Audio Controls ----------
 $("presetHivemq").addEventListener("click", () => {
   $("broker").value = "wss://broker.hivemq.com:8884/mqtt";
 });
 $("presetEmqx").addEventListener("click", () => {
   $("broker").value = "wss://broker.emqx.io:8084/mqtt";
 });
-$("luxSlider").addEventListener("input", () => {
-  currentLux = Number($("luxSlider").value);
-  $("luxSliderVal").textContent = currentLux.toFixed(1);
+$("audioSource").addEventListener("change", () => {
+  $("manualAudioWrap").hidden = $("audioSource").value !== "manual";
+  if (active && $("sensorMode").value === "physical") {
+    stopMicrophoneSensor();
+    startMicrophoneSensor();
+  }
+});
+$("audioSlider").addEventListener("input", () => {
+  const v = Number($("audioSlider").value);
+  $("audioSliderVal").textContent = v.toFixed(2);
+  updateAudioMeter(v);
 });
 
 // ---------- Alarm Suara + Getar untuk Edge 2 (Parent Node) ----------
-function ensureAudioContext() {
+function ensureAlarmAudioContext() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!alarmAudioCtx && AudioCtx) alarmAudioCtx = new AudioCtx();
@@ -265,7 +299,7 @@ function ensureAudioContext() {
 }
 
 function playBeepPattern() {
-  ensureAudioContext();
+  ensureAlarmAudioContext();
   if (!alarmAudioCtx) return;
   const now = alarmAudioCtx.currentTime;
   const osc = alarmAudioCtx.createOscillator();
@@ -284,7 +318,7 @@ function playBeepPattern() {
 function triggerParentAlarm(reason, score) {
   $("alertBanner").hidden = false;
   $("alertReason").textContent = `${reason} (Risk: ${score ?? "?"})`;
-  $("alert").textContent = `🚨 ALERT (${new Date().toLocaleTimeString("id-ID")}): ${reason}`;
+  $("alert").textContent = `🚨 CRYING_AWAKE (${new Date().toLocaleTimeString("id-ID")}): ${reason}`;
   if (navigator.vibrate) {
     navigator.vibrate([500, 200, 500, 200, 800]);
   }
@@ -312,116 +346,98 @@ function stopParentAlarm() {
 }
 $("muteAlarmBtn").addEventListener("click", stopParentAlarm);
 
-// ---------- Sensor Cahaya (AmbientLightSensor / Kamera / Slider) ----------
-async function startLightSensor() {
-  const mode = $("lightSource").value;
-  currentLux = Number($("luxSlider").value);
-
-  if (mode === "auto" || mode === "manual") {
-    if (mode === "auto" && "AmbientLightSensor" in window) {
-      try {
-        ambientSensor = new window.AmbientLightSensor({ frequency: 2 });
-        ambientSensor.addEventListener("reading", () => {
-          if (typeof ambientSensor.illuminance === "number" && Number.isFinite(ambientSensor.illuminance)) {
-            currentLux = Math.max(0, ambientSensor.illuminance);
-            $("luxSlider").value = String(Math.min(250, Math.round(currentLux)));
-            $("luxSliderVal").textContent = currentLux.toFixed(1);
-          }
-        });
-        ambientSensor.addEventListener("error", () => {
-          log("AmbientLightSensor browser tidak diizinkan; menggunakan slider cahaya.");
-        });
-        ambientSensor.start();
-        log("AmbientLightSensor bawaan browser aktif.");
-      } catch (_) {
-        log("Menggunakan slider cahaya di layar (geser slider untuk ubah lux).");
-      }
-    }
-    window.addEventListener("devicelight", onDeviceLight);
+// ---------- Sensor Audio Microphone (Web Audio API Short-Time RMS) ----------
+async function startMicrophoneSensor() {
+  if ($("audioSource").value === "manual") {
+    $("micState").textContent = "Slider Manual";
+    updateAudioMeter(Number($("audioSlider").value));
+    log("Menggunakan slider audio manual.");
     return;
   }
-
-  if (mode === "camera") {
-    try {
-      camStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 64 }, height: { ideal: 64 } },
-        audio: false,
-      });
-      const video = $("camVideo");
-      video.srcObject = camStream;
-      await video.play();
-      const canvas = $("camCanvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      camTimer = setInterval(() => {
-        if (video.readyState < 2) return;
-        ctx.drawImage(video, 0, 0, 32, 32);
-        const frame = ctx.getImageData(0, 0, 32, 32).data;
-        let sumLuma = 0;
-        for (let i = 0; i < frame.length; i += 4) {
-          sumLuma += 0.2126 * frame[i] + 0.7152 * frame[i + 1] + 0.0722 * frame[i + 2];
-        }
-        const avgLuma = sumLuma / (frame.length / 4); // 0..255
-        currentLux = Math.round((avgLuma / 255) * 180 * 10) / 10;
-        $("luxSlider").value = String(Math.min(250, Math.round(currentLux)));
-        $("luxSliderVal").textContent = currentLux.toFixed(1);
-      }, 400);
-      log("Sensor cahaya via kamera aktif (mengukur kecerahan kamar).");
-    } catch (err) {
-      log("Kamera tidak dapat diakses (" + err.message + "), fallback ke slider cahaya.");
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("getUserMedia membutuhkan HTTPS atau localhost");
     }
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        video: false,
+      });
+    } catch (_) {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    }
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    micAudioCtx = new AudioCtx();
+    if (micAudioCtx.state === "suspended") {
+      await micAudioCtx.resume();
+    }
+    const source = micAudioCtx.createMediaStreamSource(micStream);
+    micAnalyser = micAudioCtx.createAnalyser();
+    micAnalyser.fftSize = 1024;
+    source.connect(micAnalyser);
+
+    const timeData = new Float32Array(micAnalyser.fftSize);
+    micTimer = setInterval(() => {
+      if (!micAnalyser) return;
+      if (micAudioCtx && micAudioCtx.state === "suspended") {
+        micAudioCtx.resume().catch(() => {});
+      }
+      micAnalyser.getFloatTimeDomainData(timeData);
+      let sumSq = 0;
+      for (let i = 0; i < timeData.length; i++) {
+        sumSq += timeData[i] * timeData[i];
+      }
+      const rawRms = Math.sqrt(sumSq / timeData.length);
+      const scaledRms = Math.min(1.0, rawRms * 3.5);
+      updateAudioMeter(scaledRms);
+    }, 100);
+
+    $("micState").textContent = "Aktif (Real-time Mic)";
+    log("Microphone aktif: mengukur Audio RMS secara real-time.");
+  } catch (err) {
+    $("micState").textContent = "Gagal / Fallback Slider (" + err.message + ")";
+    log("Microphone tidak dapat diakses (" + err.message + "). Beralih ke Slider Audio Manual.");
+    $("audioSource").value = "manual";
+    $("manualAudioWrap").hidden = false;
+    updateAudioMeter(Number($("audioSlider").value));
   }
 }
 
-function onDeviceLight(event) {
-  if (typeof event.value === "number" && Number.isFinite(event.value)) {
-    currentLux = Math.max(0, event.value);
-    $("luxSlider").value = String(Math.min(250, Math.round(currentLux)));
-    $("luxSliderVal").textContent = currentLux.toFixed(1);
-  }
-}
-
-function stopLightSensor() {
-  window.removeEventListener("devicelight", onDeviceLight);
-  if (ambientSensor) {
-    try { ambientSensor.stop(); } catch (_) {}
-    ambientSensor = null;
-  }
-  if (camTimer) {
-    clearInterval(camTimer);
-    camTimer = null;
-  }
-  if (camStream) {
-    camStream.getTracks().forEach((t) => t.stop());
-    camStream = null;
-  }
+function stopMicrophoneSensor() {
+  if (micTimer) { clearInterval(micTimer); micTimer = null; }
+  if (micStream) { micStream.getTracks().forEach((t) => t.stop()); micStream = null; }
+  micAnalyser = null;
+  if (micAudioCtx) { micAudioCtx.close().catch(() => {}); micAudioCtx = null; }
+  $("micState").textContent = "Berhenti";
 }
 
 // ---------- Data Processing (Identik dengan shared/processing.py) ----------
 function extractFeatures(windowSamples) {
-  let squared = 0;
+  let accelSquared = 0;
   let angle = 0;
-  let luxSum = 0;
+  let audioSquared = 0;
   for (let i = 0; i < windowSamples.length; i++) {
     const s = windowSamples[i];
     const magnitude = Math.hypot(...s.accel);
-    squared += (magnitude - GRAVITY) ** 2;
-    luxSum += Math.max(0, s.lux ?? 0);
+    accelSquared += (magnitude - GRAVITY) ** 2;
+    audioSquared += Math.max(0, s.audio ?? 0) ** 2;
     if (i > 0) {
       const dt = Math.max(0, (s.time - windowSamples[i - 1].time) / 1000);
       angle += Math.hypot(...s.gyro) * dt;
     }
   }
+  const n = windowSamples.length;
   return {
-    motion_rms: Number(Math.sqrt(squared / windowSamples.length).toFixed(4)),
+    motion_rms: Number(Math.sqrt(accelSquared / n).toFixed(4)),
     rotation_rad: Number(angle.toFixed(4)),
-    light_lux: Number((luxSum / windowSamples.length).toFixed(2)),
+    audio_rms: Number(Math.sqrt(audioSquared / n).toFixed(4)),
   };
 }
 
-function pushAndProcessSample(accel, gyro, lux) {
+function pushAndProcessSample(accel, gyro, audioLevel) {
   const now = performance.now();
-  samples.push({ time: now, accel, gyro, lux });
-  lastSample = now;
+  samples.push({ time: now, accel, gyro, audio: audioLevel });
   $("samples").textContent = String(Number($("samples").textContent) + 1);
   if (samples.length > MAX_SAMPLES) samples.shift();
   if (now - lastPublish < WINDOW_MS || samples.length < MIN_SAMPLES) return;
@@ -429,7 +445,7 @@ function pushAndProcessSample(accel, gyro, lux) {
   const processed = extractFeatures(samples);
   $("motion").textContent = processed.motion_rms.toFixed(3) + " m/s²";
   $("rotation").textContent = processed.rotation_rad.toFixed(3) + " rad";
-  $("lightLux").textContent = processed.light_lux.toFixed(1) + " lux";
+  $("audioRms").textContent = processed.audio_rms.toFixed(3);
   lastPublish = now;
   samples = [];
 
@@ -449,7 +465,7 @@ function pushAndProcessSample(accel, gyro, lux) {
 }
 
 function onMotion(event) {
-  if (!active || $("motionMode").value !== "physical") return;
+  if (!active || $("sensorMode").value !== "physical") return;
   motionEvents++;
   $("events").textContent = String(motionEvents);
 
@@ -461,16 +477,33 @@ function onMotion(event) {
   if (hasAccel) {
     accelEvents++;
     $("accelEvents").textContent = String(accelEvents);
+    latestAccel = [a.x, a.y, a.z];
+    lastMotionEventAt = performance.now();
   }
   if (hasGyro) {
     gyroEvents++;
     $("gyroEvents").textContent = String(gyroEvents);
+    const RAD = Math.PI / 180;
+    latestGyro = [r.alpha * RAD, r.beta * RAD, r.gamma * RAD];
+  } else {
+    latestGyro = [0, 0, 0];
   }
-  if (!hasAccel) return;
+}
 
-  const RAD = Math.PI / 180;
-  const gyroRad = hasGyro ? [r.alpha * RAD, r.beta * RAD, r.gamma * RAD] : [0, 0, 0];
-  pushAndProcessSample([a.x, a.y, a.z], gyroRad, currentLux);
+// ---------- Loop Sampling Fisik (Berjalan di HP maupun Laptop!) ----------
+function startPhysicalSampler() {
+  latestAccel = [0, 0, GRAVITY];
+  latestGyro = [0, 0, 0];
+  lastMotionEventAt = 0;
+  physicalTimer = setInterval(() => {
+    if (!active || $("sensorMode").value !== "physical") return;
+    // Jika perangkat diam / dibuka di laptop tanpa event devicemotion baru, gunakan posisi diam [0, 0, 9.81]
+    if (performance.now() - lastMotionEventAt > 500) {
+      latestAccel = [0, 0, GRAVITY];
+      latestGyro = [0, 0, 0];
+    }
+    pushAndProcessSample(latestAccel, latestGyro, currentAudioRms);
+  }, 200);
 }
 
 // ---------- Mode Simulasi Online di Browser ----------
@@ -482,27 +515,30 @@ function startBrowserSimulation(simMode) {
     const noise = (scale) => (Math.random() - 0.5) * 2 * scale;
     let accel = [noise(0.03), noise(0.03), 9.81 + noise(0.03)];
     let gyro = [noise(0.01), noise(0.01), noise(0.01)];
-    let lux = currentLux;
+    let audio = 0.02 + Math.abs(noise(0.005));
 
     if (simMode === "sim_crying") {
-      accel = [2.4 * Math.sin(6 * t) + noise(0.08), 0.8 * Math.cos(5 * t), 9.81 + 2.4 * Math.cos(4.5 * t)];
-      gyro = [0.7, 0.35, 0.25];
+      accel = [2.2 * Math.sin(6 * t) + noise(0.08), 0.8 * Math.cos(5 * t), 9.81 + 2.2 * Math.cos(4.5 * t)];
+      gyro = [0.65, 0.30, 0.22];
+      audio = 0.56 + noise(0.04);
     } else if (simMode === "sim_restless") {
       accel = [0.85 * Math.sin(3.5 * t) + noise(0.05), 0.3 * Math.cos(2.5 * t), 9.81 + 0.85 * Math.cos(3 * t)];
-      gyro = [0.22, 0.1, 0.08];
-    } else if (simMode === "sim_light_on") {
-      lux = Math.max(currentLux, 125.0);
-      $("luxSlider").value = String(Math.round(lux));
-      $("luxSliderVal").textContent = lux.toFixed(1);
+      gyro = [0.24, 0.10, 0.08];
+      audio = 0.04 + Math.abs(noise(0.01));
+    } else if (simMode === "sim_crowd") {
+      accel = [noise(0.03), noise(0.03), 9.81 + noise(0.03)];
+      gyro = [noise(0.01), noise(0.01), noise(0.01)];
+      audio = 0.28 + noise(0.02);
     }
 
+    updateAudioMeter(audio);
     motionEvents++;
     accelEvents++;
     gyroEvents++;
     $("events").textContent = String(motionEvents);
     $("accelEvents").textContent = String(accelEvents);
     $("gyroEvents").textContent = String(gyroEvents);
-    pushAndProcessSample(accel, gyro, lux);
+    pushAndProcessSample(accel, gyro, audio);
   }, 200);
 }
 
@@ -510,9 +546,9 @@ function stop() {
   active = false;
   connected = false;
   window.removeEventListener("devicemotion", onMotion);
-  stopLightSensor();
+  stopMicrophoneSensor();
   stopParentAlarm();
-  if (watcher !== null) { clearInterval(watcher); watcher = null; }
+  if (physicalTimer !== null) { clearInterval(physicalTimer); physicalTimer = null; }
   if (simTimer !== null) { clearInterval(simTimer); simTimer = null; }
   if (client) { client.end(true); client = null; }
   $("start").disabled = false;
@@ -524,28 +560,8 @@ async function start(event) {
   event.preventDefault();
   if (active) return;
 
-  ensureAudioContext();
-  const motionMode = $("motionMode").value;
-
-  if (motionMode === "physical") {
-    if (!window.isSecureContext) {
-      status("Untuk sensor gerak fisik HP, buka via HTTPS atau ubah 'Mode Sumber Gerak' ke Simulasi Online.", "warn");
-      return;
-    }
-    if (typeof DeviceMotionEvent === "undefined") {
-      status("DeviceMotion tidak didukung di perangkat ini. Pilih mode Simulasi Online di atas.", "warn");
-      return;
-    }
-    try {
-      if (typeof DeviceMotionEvent.requestPermission === "function") {
-        const permission = await DeviceMotionEvent.requestPermission();
-        if (permission !== "granted") throw new Error("Izin motion sensor ditolak");
-      }
-    } catch (err) {
-      status("Izin sensor gerak ditolak: " + err.message, "bad");
-      return;
-    }
-  }
+  ensureAlarmAudioContext();
+  const sensorMode = $("sensorMode").value;
 
   if (typeof mqtt === "undefined") {
     status("Library MQTT.js gagal dimuat. Periksa koneksi internet.", "bad");
@@ -562,12 +578,20 @@ async function start(event) {
     return;
   }
 
+  // Minta izin sensor gerak iOS jika tersedia (tidak memblokir mikrofon jika di laptop)
+  if (sensorMode === "physical" && typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+    try {
+      await DeviceMotionEvent.requestPermission();
+    } catch (err) {
+      log("Info izin gerak iOS: " + err.message);
+    }
+  }
+
   active = true;
   connected = false;
   samples = [];
   sequence = 0;
   bootId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(16).slice(2));
-  lastSample = 0;
   lastPublish = performance.now();
   motionEvents = 0;
   accelEvents = 0;
@@ -579,12 +603,21 @@ async function start(event) {
   $("sent").textContent = "0";
   $("motion").textContent = "—";
   $("rotation").textContent = "—";
-  $("lightLux").textContent = "—";
+  $("audioRms").textContent = "—";
   $("detectorStatus").textContent = "Menunggu...";
   $("start").disabled = true;
   $("stop").disabled = false;
 
-  await startLightSensor();
+  if (sensorMode === "physical") {
+    await startMicrophoneSensor();
+    if (typeof DeviceMotionEvent !== "undefined") {
+      window.addEventListener("devicemotion", onMotion);
+    }
+    startPhysicalSampler();
+  } else {
+    $("micState").textContent = "Simulasi Online";
+    startBrowserSimulation(sensorMode);
+  }
 
   const namespace = `pocketguard/${project}`;
   client = mqtt.connect(broker, {
@@ -620,41 +653,24 @@ async function start(event) {
 
     if (topic === `${namespace}/status`) {
       $("detectorStatus").textContent = `${data.status || "?"} — ${data.reason || ""}`;
-      if (data.status && data.status !== "ALERT") {
+      if (data.status && data.status !== "CRYING_AWAKE" && data.status !== "ALERT") {
         $("alertBanner").hidden = true;
       }
     } else if (topic === `${namespace}/alerts`) {
-      const reason = String(data.reason || "Gerakan tinggi / bayi menangis aktif!");
+      const reason = String(data.reason || "Bayi menangis / terbangun aktif!");
       if (role === "edge2") {
         triggerParentAlarm(reason, data.risk_score);
-        log("🚨 ALERT DARURAT diterima dari Central Detector!");
+        log("🚨 ALERT DARURAT (CRYING_AWAKE) diterima dari Central Detector!");
       } else {
         $("alert").textContent = "ALERT terkirim ke HP Orang Tua: " + reason;
       }
     }
   });
-
-  if (motionMode === "physical") {
-    window.addEventListener("devicemotion", onMotion);
-    status("Menunggu pembacaan sensor fisik & koneksi MQTT...");
-    log("Sensor fisik aktif. Gerakkan HP atau ubah slider cahaya.");
-    watcher = setInterval(() => {
-      if (!active) return;
-      if (!motionEvents) {
-        status("0 event sensor gerak: Pastikan dibuka lewat HTTPS di HP, atau pilih 'Simulasi Online' pada Mode Sumber Gerak.", "warn");
-      } else if (!accelEvents) {
-        status("Event diterima, tetapi accelerometer tidak tersedia di browser ini.", "warn");
-      }
-    }, 3000);
-  } else {
-    startBrowserSimulation(motionMode);
-    log(`Mode Simulasi Online (${motionMode}) berjalan di browser.`);
-  }
 }
 
 $("setup").addEventListener("submit", start);
 $("stop").addEventListener("click", stop);
-$("motionMode").addEventListener("change", () => {
+$("sensorMode").addEventListener("change", () => {
   if (active) {
     stop();
     $("setup").requestSubmit();
