@@ -3,24 +3,43 @@ import unittest
 from shared.processing import SensorSample, extract_features
 
 
-class ProcessingTests(unittest.TestCase):
-    def test_stationary_phone_and_audio_rms(self):
-        samples = [SensorSample(i * 0.5, (0, 0, 9.81), (0, 0, 0), audio_rms=0.3) for i in range(5)]
-        result = extract_features(samples)
-        self.assertAlmostEqual(result.motion_rms, 0, places=3)
-        self.assertAlmostEqual(result.rotation_rad, 0, places=3)
-        self.assertAlmostEqual(result.audio_rms, 0.3, places=3)
+def window(accel, audio, n=6, dt=0.25):
+    return [
+        SensorSample(i * dt, accel(i) if callable(accel) else accel, (0.0, 0.0, 0.0),
+                     audio_level=audio(i) if callable(audio) else audio)
+        for i in range(n)
+    ]
 
-    def test_movement_increases_features(self):
-        samples = [SensorSample(i * 0.5, (0, 0, 12), (0.5, 0, 0), audio_rms=0.05) for i in range(5)]
-        result = extract_features(samples)
-        self.assertGreater(result.motion_rms, 2)
-        self.assertGreater(result.rotation_rad, 0.9)
-        self.assertAlmostEqual(result.audio_rms, 0.05, places=3)
+
+class ProcessingTests(unittest.TestCase):
+    def test_still_phone_on_back(self):
+        f = extract_features(window((0.0, 0.0, 9.81), 0.02))
+        self.assertAlmostEqual(f.motion_rms, 0.0, places=3)
+        self.assertAlmostEqual(f.jerk_metric, 0.0, places=3)
+        self.assertAlmostEqual(f.tilt_angle, 0.0, places=1)
+        self.assertAlmostEqual(f.audio_rms, 0.02, places=3)
+        self.assertLess(f.zcr, 0.1)
+
+    def test_face_down_tilt(self):
+        f = extract_features(window((1.5, 0.0, -9.6), 0.03))
+        self.assertGreater(f.tilt_angle, 150.0)
+
+    def test_quiet_noise_keeps_zcr_low(self):
+        f = extract_features(window((0.0, 0.0, 9.81), lambda i: 0.028 if i % 2 else 0.016))
+        self.assertLess(f.zcr, 0.1)
+
+    def test_motion_and_crying_raise_features(self):
+        f = extract_features(window(lambda i: (1.5 if i % 2 else -1.5, 0.5, 11.5),
+                                    lambda i: 0.78 if i % 2 else 0.50))
+        self.assertGreater(f.motion_rms, 1.5)
+        self.assertGreater(f.jerk_metric, 5.0)
+        self.assertGreater(f.audio_rms, 0.5)
+        self.assertGreater(f.zcr, 0.6)
+        self.assertGreater(f.spectral_centroid_approx, 2500.0)
 
     def test_need_multiple_samples(self):
         with self.assertRaises(ValueError):
-            extract_features([SensorSample(0, (0, 0, 9.81), (0, 0, 0), audio_rms=0.0)])
+            extract_features(window((0.0, 0.0, 9.81), 0.0, n=1))
 
 
 if __name__ == "__main__":

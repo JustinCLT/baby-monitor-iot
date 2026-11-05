@@ -1,7 +1,7 @@
-"""NODE 3 — Laptop: Smart Dual-Zone Baby Monitor MQTT detector + browser dashboard.
+"""NODE 3 — Laptop: Smart Multimodal Baby Guardian ML detector + web dashboard.
 
-Run: python detector.py
-Open the printed http://localhost:8000 link on this laptop.
+  1. python train_model.py   (sekali, membuat baby_guardian_model.joblib)
+  2. python detector.py
 """
 
 from nodes.detector_service.main import main
@@ -14,15 +14,15 @@ def run():
         server, thread, url = start_dashboard_server()
     except OSError as exc:
         raise SystemExit(
-            f"[DASHBOARD] Gagal membuka localhost:8000: {exc}. "
+            f"[DASHBOARD] Gagal membuka port dashboard: {exc}. "
             "Tutup aplikasi lain di port ini atau set DASHBOARD_PORT di .env."
         ) from exc
 
-    print("\nSmart Dual-Zone Baby Monitor & Restlessness/Cry Guard — NODE 3 / Laptop", flush=True)
-    print(f"[DASHBOARD] Buka Dashboard di browser : {url}", flush=True)
-    print(f"[WEB-EDGE]  Buka Sensor Online (Tanpa Termux) : {url}/edge", flush=True)
+    print("\nSmart Multimodal Baby Guardian & Closed-Loop Safety Telemetry — NODE 3 / Laptop", flush=True)
+    print(f"[DASHBOARD] {url}", flush=True)
+    print(f"[WEB-EDGE]  {url}/edge  (sensor lewat browser, tanpa Termux)", flush=True)
     print(f"[CONFIG]    PROJECT_ID: {project_id()}", flush=True)
-    print("[BABY-DETECTOR] Menunggu Baby Node (edge1) dan Parent Node (edge2) dari MQTT Cloud...\n", flush=True)
+    print("[ML-DETECTOR] Menunggu telemetri dari Baby Node (edge1) dan Parent Node (edge2)...\n", flush=True)
     try:
         main()
     finally:

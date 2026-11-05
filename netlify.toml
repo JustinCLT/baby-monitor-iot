@@ -1,0 +1,13 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/dashboard/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/edge"
+  to = "/web-edge/index.html"
+  status = 200
+

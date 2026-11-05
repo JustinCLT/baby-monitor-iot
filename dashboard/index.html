@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart Baby Monitor — PocketGuard Dashboard</title>
-<!-- MQTT.js: client MQTT di browser lewat WebSocket (wss://) -->
+<title>Smart Multimodal Baby Guardian — ML Telemetry Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
 <style>
   :root {
@@ -31,7 +30,7 @@
   h1 { font-size: 24px; margin: 0; }
   h2 { font-size: 16px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 14px; }
   .ok { color: var(--ok); background: var(--ok-bg); } .bad { color: var(--bad); background: var(--bad-bg); }
   .warn { color: var(--warn); background: var(--warn-bg); } .info { color: var(--info); background: var(--info-bg); }
@@ -46,8 +45,8 @@
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   #status-text { font-size: 32px; font-weight: 700; margin: 4px 0; padding: 4px 16px; border-radius: 10px; display: inline-block; }
   .muted { color: var(--muted); font-size: 14px; }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; }
-  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; font-size: 14px; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
   .swatch { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
   canvas { width: 100%; height: 240px; display: block; }
@@ -61,8 +60,8 @@
 <main>
   <header>
     <div>
-      <h1>Smart Dual-Zone Baby Monitor Dashboard</h1>
-      <span class="muted">Motion (Accelerometer + Gyroscope) &amp; Audio Amplitude (audio_rms)</span>
+      <h1>Smart Multimodal Baby Guardian Dashboard</h1>
+      <span class="muted">Random Forest Classifier + Temporal State Smoothing (6 Fitur Multimodal)</span>
     </div>
     <div class="row">
       <a class="btn-link primary" href="/edge?role=edge1" target="_blank">Buka Sensor Edge 1 (Browser)</a>
@@ -88,7 +87,7 @@
   </details>
 
   <section class="card" aria-labelledby="h-status">
-    <h2 id="h-status">Status Kamar Bayi (Decision Engine)</h2>
+    <h2 id="h-status">Status Inferensi Machine Learning &amp; Temporal Filter</h2>
     <div id="status-text" class="off">—</div>
     <p id="status-reason" class="muted">Menunggu pesan dari topic status…</p>
     <div class="row">
@@ -100,25 +99,29 @@
 
   <div class="grid">
     <section class="card" aria-labelledby="h-edge1">
-      <h2 id="h-edge1">Edge 1 · Baby Node (Kasur Bayi)</h2>
+      <h2 id="h-edge1">Edge 1 · Baby Node (6 Fitur Multimodal)</h2>
       <span id="edge1-state" class="pill off">Belum ada data</span>
       <dl>
-        <dt>Getaran Kasur (motion_rms)</dt><dd id="edge1-motion">—</dd>
-        <dt>Rotasi (rotation_rad)</dt><dd id="edge1-rotation">—</dd>
-        <dt>Suara / Tangisan (audio_rms)</dt><dd id="edge1-audio">—</dd>
-        <dt>Pesan #</dt><dd id="edge1-seq">—</dd>
-        <dt>Terakhir</dt><dd id="edge1-seen">—</dd>
+        <dt>1. Getaran (motion_rms)</dt><dd id="edge1-motion">—</dd>
+        <dt>2. Sentakan (jerk_metric)</dt><dd id="edge1-jerk">—</dd>
+        <dt>3. Kemiringan (tilt_angle)</dt><dd id="edge1-tilt">—</dd>
+        <dt>4. Amplitudo (audio_rms)</dt><dd id="edge1-audio">—</dd>
+        <dt>5. Frekuensi (spectral_centroid)</dt><dd id="edge1-centroid">—</dd>
+        <dt>6. Zero-Crossing Rate (zcr)</dt><dd id="edge1-zcr">—</dd>
+        <dt>Pesan # / Terakhir</dt><dd><span id="edge1-seq">—</span> · <span id="edge1-seen">—</span></dd>
       </dl>
     </section>
     <section class="card" aria-labelledby="h-edge2">
       <h2 id="h-edge2">Edge 2 · Parent Node (Orang Tua)</h2>
       <span id="edge2-state" class="pill off">Belum ada data</span>
       <dl>
-        <dt>Getaran (motion_rms)</dt><dd id="edge2-motion">—</dd>
-        <dt>Rotasi (rotation_rad)</dt><dd id="edge2-rotation">—</dd>
-        <dt>Audio (audio_rms)</dt><dd id="edge2-audio">—</dd>
-        <dt>Pesan #</dt><dd id="edge2-seq">—</dd>
-        <dt>Terakhir</dt><dd id="edge2-seen">—</dd>
+        <dt>1. Getaran (motion_rms)</dt><dd id="edge2-motion">—</dd>
+        <dt>2. Sentakan (jerk_metric)</dt><dd id="edge2-jerk">—</dd>
+        <dt>3. Kemiringan (tilt_angle)</dt><dd id="edge2-tilt">—</dd>
+        <dt>4. Amplitudo (audio_rms)</dt><dd id="edge2-audio">—</dd>
+        <dt>5. Frekuensi (spectral_centroid)</dt><dd id="edge2-centroid">—</dd>
+        <dt>6. Zero-Crossing Rate (zcr)</dt><dd id="edge2-zcr">—</dd>
+        <dt>Pesan # / Terakhir</dt><dd><span id="edge2-seq">—</span> · <span id="edge2-seen">—</span></dd>
       </dl>
     </section>
   </div>
@@ -128,15 +131,15 @@
     <div class="legend">
       <span><span class="swatch" style="background:var(--edge1)"></span>Edge 1 (Baby Node)</span>
       <span><span class="swatch" style="background:var(--edge2)"></span>Edge 2 (Parent Node)</span>
-      <span><span class="swatch" style="background:var(--threshold)"></span>Ambang Gelisah (0,45)</span>
+      <span><span class="swatch" style="background:var(--threshold)"></span>Ambang Aktif (0,40)</span>
     </div>
     <canvas id="chart" role="img" aria-label="Grafik garis getaran Edge 1 dan Edge 2"></canvas>
   </section>
 
   <section class="card" aria-labelledby="h-alerts">
-    <h2 id="h-alerts">Riwayat Alert Darurat (CRYING_AWAKE)</h2>
+    <h2 id="h-alerts">Riwayat Alert Darurat (CRYING / PRONE_RISK)</h2>
     <table>
-      <thead><tr><th>Waktu</th><th>Risk</th><th>Alasan</th></tr></thead>
+      <thead><tr><th>Waktu</th><th>Confidence</th><th>Alasan ML Detector</th></tr></thead>
       <tbody id="alerts"><tr><td colspan="3" class="muted">Belum ada alert.</td></tr></tbody>
     </table>
   </section>
@@ -146,16 +149,13 @@
 
 <script>
 "use strict";
-// Sama dengan nodes/detector_service/rules.py
-const MOTION_THRESHOLD = 0.45;
-const ROTATION_THRESHOLD = 0.20;
-const AUDIO_NOISE_THRESHOLD = 0.15;
+const MOTION_THRESHOLD = 0.40;
 const OFFLINE_AFTER_MS = 10000;
 const MAX_POINTS = 60;
 const STATUS_CLASS = {
-  CRYING_AWAKE: "bad", ALERT: "bad",
-  SLEEPING_SOUNDLY: "ok", NORMAL: "ok", ARMED: "ok",
-  RESTLESS_BABY: "warn", CROWD_NOISE: "warn",
+  ALERT: "bad", CRYING_AWAKE: "bad",
+  NORMAL: "ok", SLEEPING_SOUNDLY: "ok", ARMED: "ok",
+  RESTLESS: "warn", RESTLESS_BABY: "warn", CROWD_NOISE: "warn",
   REJECTED_REPLAY: "warn", REJECTED_STALE: "warn",
   WAITING: "info", ONLINE: "info",
   DISARMED: "off", OFFLINE: "off",
@@ -261,14 +261,29 @@ function renderStatus(data) {
 }
 
 function updateEdge(id, data) {
-  const motion = Number(data.motion_rms), rotation = Number(data.rotation_rad), audio = Number(data.audio_rms ?? 0);
-  edges[id] = { motion, rotation, audio, seq: data.sequence, receivedAt: Date.now() };
-  $(`${id}-motion`).textContent = `${fmt(motion)} m/s²`;
-  $(`${id}-rotation`).textContent = `${fmt(rotation)} rad`;
+  const motion = Number(data.motion_rms ?? 0);
+  const jerk = Number(data.jerk_metric ?? 0);
+  const tilt = Number(data.tilt_angle ?? 0);
+  const audio = Number(data.audio_rms ?? 0);
+  const centroid = Number(data.spectral_centroid_approx ?? 0);
+  const zcr = Number(data.zcr ?? 0);
+
+  edges[id] = { motion, receivedAt: Date.now() };
+  $(`${id}-motion`).textContent = `${fmt(motion, 3)} m/s²`;
+  $(`${id}-jerk`).textContent = `${fmt(jerk, 2)} m/s³`;
+  $(`${id}-tilt`).textContent = `${fmt(tilt, 1)}°`;
   $(`${id}-audio`).textContent = `${fmt(audio, 3)}`;
-  $(`${id}-seq`).textContent = String(data.sequence ?? "—");
-  const active = motion >= MOTION_THRESHOLD || rotation >= ROTATION_THRESHOLD || audio >= AUDIO_NOISE_THRESHOLD;
-  setPill($(`${id}-state`), active ? "Aktif / Bersuara" : "Tenang", active ? "warn" : "ok");
+  $(`${id}-centroid`).textContent = `${fmt(centroid, 0)} Hz`;
+  $(`${id}-zcr`).textContent = `${fmt(zcr, 3)}`;
+  $(`${id}-seq`).textContent = `#${data.sequence ?? "—"}`;
+
+  const danger = tilt >= 110 || audio >= 0.35;
+  const active = motion >= MOTION_THRESHOLD || jerk >= 3.0;
+  setPill(
+    $(`${id}-state`),
+    danger ? "Indikasi Bahaya (Crying / Prone)" : (active ? "Bergerak (Restless)" : "Aman (Sleeping)"),
+    danger ? "bad" : (active ? "warn" : "ok")
+  );
 
   series[id].push(motion);
   if (series[id].length > MAX_POINTS) series[id].shift();
@@ -293,7 +308,7 @@ function tick() {
     const edge = edges[id];
     if (!edge) continue;
     const age = Date.now() - edge.receivedAt;
-    $(`${id}-seen`).textContent = `${Math.round(age / 1000)} detik lalu`;
+    $(`${id}-seen`).textContent = `${Math.round(age / 1000)} dtk lalu`;
     if (age > OFFLINE_AFTER_MS) setPill($(`${id}-state`), "Offline (tidak ada data)", "off");
   }
 }

@@ -1,13 +1,19 @@
-"""DATA PROCESSING (used by BOTH edge devices).
+"""MULTIMODAL SIGNAL PROCESSING AT THE EDGE (used by Python edges; mirrored in web-edge/index.html).
 
-Processing A (Motion): Root Mean Square (RMS) of linear acceleration deviation from gravity
-                       and integrated angular rotation (rad) from gyroscope.
-Processing B (Audio):  Audio RMS / Short-Time Energy across the sampling window to measure
-                       ambient noise and baby crying amplitude.
+Processing A (IMU — accelerometer):
+  - motion_rms  : RMS of acceleration-magnitude deviation from gravity (9.81 m/s²).
+  - jerk_metric : mean |Δa| / Δt between consecutive samples (m/s³).
+  - tilt_angle  : mean inclination vs. the vertical +Z axis in degrees (0° = on back, ~180° = face-down).
+
+Processing B (Audio dynamics):
+  - audio_rms                : RMS of audio levels in the window.
+  - zcr                      : zero-crossing-rate approximation of the audio envelope,
+                               weighted by signal energy so quiet noise stays low.
+  - spectral_centroid_approx : spectral-centroid estimate (Hz) from amplitude, variance and dynamics.
 """
 
 from dataclasses import dataclass
-from math import sqrt
+from math import atan2, degrees, hypot, sqrt
 
 GRAVITY = 9.81
 
@@ -17,43 +23,68 @@ class SensorSample:
     seconds: float
     acceleration: tuple[float, float, float]
     gyroscope: tuple[float, float, float]
-    audio_rms: float = 0.0
+    audio_level: float = 0.0
 
 
 @dataclass(frozen=True)
 class Features:
     motion_rms: float
-    rotation_rad: float
-    audio_rms: float = 0.0
+    jerk_metric: float
+    tilt_angle: float
+    audio_rms: float
+    spectral_centroid_approx: float
+    zcr: float
 
 
 def extract_features(samples: list[SensorSample]) -> Features:
     if len(samples) < 2:
         raise ValueError("At least 2 sensor samples are required")
+    n = len(samples)
 
-    # Processing A1: Root Mean Square (RMS) of linear acceleration deviation from gravity
-    acceleration_errors = []
+    # ---------- Processing A: IMU ----------
+    deviations = []
+    tilts = []
     for sample in samples:
-        x, y, z = sample.acceleration
-        acceleration_magnitude = sqrt(x * x + y * y + z * z)
-        acceleration_errors.append(acceleration_magnitude - GRAVITY)
+        ax, ay, az = sample.acceleration
+        deviations.append(sqrt(ax * ax + ay * ay + az * az) - GRAVITY)
+        tilts.append(max(0.0, min(180.0, degrees(atan2(hypot(ax, ay), az)))))
 
-    motion_rms = sqrt(sum(value ** 2 for value in acceleration_errors) / len(samples))
+    motion_rms = sqrt(sum(d * d for d in deviations) / n)
+    tilt_angle = sum(tilts) / n
 
-    # Processing A2: Integrated angular movement from gyroscope readings
-    rotation_rad = 0.0
+    jerks = []
     for previous, current in zip(samples, samples[1:]):
-        delta_seconds = max(0.0, current.seconds - previous.seconds)
-        gx, gy, gz = current.gyroscope
-        angular_speed = sqrt(gx * gx + gy * gy + gz * gz)
-        rotation_rad += angular_speed * delta_seconds
+        dt = max(1e-3, current.seconds - previous.seconds)
+        delta = [c - p for c, p in zip(current.acceleration, previous.acceleration)]
+        jerks.append(sqrt(sum(d * d for d in delta)) / dt)
+    jerk_metric = sum(jerks) / len(jerks)
 
-    # Processing B: Audio RMS / Short-Time Energy over the time window
-    audio_energy = sum(max(0.0, sample.audio_rms) ** 2 for sample in samples) / len(samples)
-    window_audio_rms = sqrt(audio_energy)
+    # ---------- Processing B: Audio ----------
+    levels = [max(0.0, float(sample.audio_level)) for sample in samples]
+    audio_rms = sqrt(sum(level * level for level in levels) / n)
+    mean_level = sum(levels) / n
+    centered = [level - mean_level for level in levels]
+    std_dev = sqrt(sum(c * c for c in centered) / n)
+    mean_diff = sum(abs(b - a) for a, b in zip(levels, levels[1:])) / (n - 1)
+
+    crossings = sum(
+        1 for a, b in zip(centered, centered[1:]) if (a >= 0.0) != (b >= 0.0)
+    )
+    raw_zcr = crossings / (n - 1)
+
+    # Envelope crossings only count when there is real acoustic energy
+    zcr = min(1.0, max(0.01, 0.4 * raw_zcr * min(1.0, audio_rms * 1.5) + 0.75 * audio_rms + 0.4 * std_dev))
+
+    spectral_centroid_approx = min(
+        4400.0,
+        max(150.0, 240.0 + 3800.0 * audio_rms + 1500.0 * std_dev + 900.0 * mean_diff + 600.0 * zcr),
+    )
 
     return Features(
         motion_rms=round(motion_rms, 4),
-        rotation_rad=round(rotation_rad, 4),
-        audio_rms=round(window_audio_rms, 4),
+        jerk_metric=round(jerk_metric, 4),
+        tilt_angle=round(tilt_angle, 2),
+        audio_rms=round(audio_rms, 4),
+        spectral_centroid_approx=round(spectral_centroid_approx, 2),
+        zcr=round(zcr, 4),
     )

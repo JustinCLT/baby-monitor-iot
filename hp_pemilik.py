@@ -1,34 +1,22 @@
-"""NODE 2 — Parent Node (edge2 / hp_pemilik.py).
+"""NODE 2 — Parent Node (edge2): HP dipegang orang tua.
 
-Dipegang orang tua di ruangan lain untuk memantau status kamar bayi dan
-menerima notifikasi darurat (getar/suara via Termux) saat status CRYING_AWAKE.
+Subscribe ke pocketguard/<PROJECT_ID>/alerts dan status. Saat ALERT diterima dari
+BabyGuardianMLDetector: termux-vibrate + notifikasi darurat (lihat shared/alarm.py).
 
-Cara menjalankan:
-  - Di HP Orang Tua (Termux):
-      python hp_pemilik.py
-  - Simulasi di Laptop:
-      python hp_pemilik.py --source simulator --scenario sleeping
+  HP (Termux):  python hp_pemilik.py
+  Simulasi:     python hp_pemilik.py --source simulator
 """
 
 from shared.alarm import ring_alarm
 from shared.edge_runner import run_edge
 
-NODE_ID = "edge2"
-NODE_LABEL = "PARENT_NODE (Edge 2 - Orang Tua)"
-DEFAULT_SCENARIO = "sleeping"
-
 
 def main():
-    print("=============================================================", flush=True)
-    print(" Smart Dual-Zone Baby Monitor — NODE 2: PARENT NODE (edge2)", flush=True)
-    print(" Mode: Telemetry + Emergency Alert Receiver (termux-vibrate)", flush=True)
-    print("=============================================================", flush=True)
-    run_edge(
-        device_id=NODE_ID,
-        on_alert=ring_alarm,
-        default_scenario=DEFAULT_SCENARIO,
-        node_label=NODE_LABEL,
-    )
+    print("=" * 66)
+    print(" Smart Multimodal Baby Guardian — NODE 2: PARENT NODE (edge2)")
+    print(" Closed-loop alert receiver: termux-vibrate + notification on ALERT")
+    print("=" * 66, flush=True)
+    run_edge("edge2", on_alert=ring_alarm, default_scenario="sleeping")
 
 
 if __name__ == "__main__":
