@@ -1,712 +1,448 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Smart Multimodal Baby Guardian · Browser Edge</title>
-  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
-  <style>
-    :root {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-      color: #152230;
-      background: #f4f7fb;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 16px; }
-    main { max-width: 680px; margin: 0 auto; }
-    h1 { font-size: 1.4rem; margin: 4px 0; }
-    h2 { font-size: 1.02rem; margin: 0 0 10px; color: #334155; }
-    p { line-height: 1.5; margin: 8px 0; }
-    .card {
-      background: #fff;
-      border: 1px solid #dce2e8;
-      border-radius: 12px;
-      padding: 16px;
-      margin: 14px 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-    }
-    label { display: block; margin: 10px 0; font-weight: 600; font-size: 0.94rem; }
-    input, select {
-      display: block;
-      width: 100%;
-      margin-top: 4px;
-      padding: 10px 12px;
-      border: 1px solid #b7c4ce;
-      border-radius: 8px;
-      font: inherit;
-      background: #fff;
-      color: inherit;
-    }
-    input[type="range"] { padding: 0; }
-    button {
-      border: 0;
-      background: #1458a8;
-      color: #fff;
-      border-radius: 8px;
-      padding: 11px 16px;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button.secondary { background: #e2e8f0; color: #1e293b; }
-    button.danger { background: #dc2626; color: #fff; }
-    button:disabled { background: #9ca7b2; color: #fff; cursor: default; }
-    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .muted { color: #546476; font-size: 0.88rem; }
-    .status-banner {
-      font-weight: 700;
-      padding: 10px 14px;
-      border-radius: 8px;
-      background: #e2e8f0;
-      color: #1e293b;
-      margin-bottom: 12px;
-    }
-    .status-banner.ok { background: #dcfce7; color: #166534; }
-    .status-banner.warn { background: #fef3c7; color: #92400e; }
-    .status-banner.bad {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 2px solid #dc2626;
-      animation: pulse 1s infinite alternate;
-    }
-    @keyframes pulse {
-      from { transform: scale(1); }
-      to { transform: scale(1.015); }
-    }
-    dl { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 0; font-size: 0.92rem; }
-    dt { color: #546476; }
-    dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
-    pre {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      font-size: 0.8rem;
-      background: #f1f5f9;
-      border-radius: 8px;
-      padding: 12px;
-      margin: 8px 0 0;
-      max-height: 220px;
-      overflow-y: auto;
-    }
-    .preset-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .preset-pills button {
-      padding: 6px 10px;
-      font-size: 0.8rem;
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
-    }
-    .meter-bar {
-      height: 12px;
-      background: #e2e8f0;
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: 6px;
-    }
-    .meter-fill {
-      height: 100%;
-      width: 0%;
-      background: #1458a8;
-      transition: width 0.1s ease;
-    }
-    [hidden] { display: none !important; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Multimodal Baby Guardian — Browser Edge (Node Sensor HP)</title>
+<style>
+:root{--ink:#17202b;--muted:#687281;--paper:#fff9f3;--line:#eadfd5;--coral:#ed665b;--cyan:#12a8b5;--ok:#168b6e;--warn:#c07a45;--bad:#d93829}
+*{margin:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
+body{background:var(--paper);color:var(--ink);min-height:100vh}
+header{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:800;font-size:18px}.brand span{color:var(--coral)}
+.badge{font-size:11px;font-weight:700;padding:5px 10px;border-radius:99px;background:#efe6dc;color:var(--muted)}
+.badge.ok{background:#daf5ec;color:var(--ok)}
+.badge.warn{background:#fff0d0;color:var(--warn)}
+.badge.bad{background:#ffe0dc;color:var(--bad)}
+main{max-width:560px;margin:auto;padding:26px 22px}
+h1{font-size:26px;letter-spacing:-.8px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:14px}
+label{font-size:11px;font-weight:800;color:#504943;display:block;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em}
+select,input{width:100%;border:1px solid #e8ddd4;border-radius:11px;padding:12px;font-size:13px;background:#fffdfb;margin-bottom:14px;color:var(--ink)}
+.btn{width:100%;border:0;border-radius:100px;padding:15px;font-size:13px;font-weight:800;cursor:pointer;background:var(--coral);color:#fff;transition:opacity .15s}
+.btn.stop{background:var(--ink)}
+.hint{font-size:11px;margin-top:10px;color:#a49a92;font-family:ui-monospace,monospace}
+.hint.ok{color:var(--ok)}.hint.warn{color:var(--warn)}.hint.bad{color:var(--bad)}
+.feat{display:flex;justify-content:space-between;font-size:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.feat:last-child{border:0}
+.feat strong{font-family:ui-monospace,monospace}
+.warnbox{background:#fff0d0;border:1px solid #f2c66d;border-radius:12px;padding:13px;font-size:12px;color:#8a6a1f;margin-bottom:14px;display:none}
+.alertbox{background:#ffe3e0;border:2px solid var(--bad);border-radius:14px;padding:14px;font-size:13px;color:#8c1d13;margin-bottom:14px;display:none;font-weight:700}
+.alertbox button{margin-top:10px;border:0;background:var(--bad);color:#fff;padding:8px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer}
+.meter{height:8px;background:#f2eae1;border-radius:99px;overflow:hidden;margin:-6px 0 14px}
+.meter-bar{height:100%;width:0%;background:var(--cyan);transition:width .1s}
+</style>
 </head>
 <body>
+<header>
+  <div class="brand">Baby Guardian <span>Browser Edge</span></div>
+  <span class="badge" id="mqtt-badge">Offline</span>
+</header>
 <main>
-  <h1>Smart Multimodal Baby Guardian · HP Edge (Online)</h1>
-  <p class="muted">
-    Gunakan browser HP langsung sebagai <strong>Edge 1 (Baby Node)</strong> atau <strong>Edge 2 (Parent Node)</strong> <strong>tanpa Termux</strong>.
-    Mengekstrak <strong>6 Fitur Multimodal</strong>: <code>motion_rms</code>, <code>jerk_metric</code>, <code>tilt_angle</code>, <code>audio_rms</code>, <code>spectral_centroid_approx</code>, dan <code>zcr</code> untuk diklasifikasikan oleh model Machine Learning Random Forest di Laptop.
-  </p>
+  <h1>Node Sensor HP</h1>
+  <p class="sub">Jalankan halaman ini di HP bayi (edge1) atau HP orang tua (edge2).</p>
 
-  <section class="card">
-    <form id="setup">
-      <label>Peran Perangkat (Node)
-        <select id="role">
-          <option value="edge1">Edge 1 — Baby Node (Dekat Kasur Bayi · Sensor IMU + Audio)</option>
-          <option value="edge2">Edge 2 — Parent Node (Dipegang Orang Tua · Terima Alarm)</option>
-        </select>
-      </label>
+  <div class="warnbox" id="https-warn">
+    Halaman ini tidak dibuka lewat HTTPS — browser memblokir mikrofon &amp; sensor gerak.
+    Buka lewat link HTTPS Netlify atau <code>http://localhost:8000/edge</code>. Mode simulasi tetap bisa dipakai.
+  </div>
 
-      <label>PROJECT_ID (Harus sama persis dengan file .env di Laptop)
-        <input id="project" value="iot_kelompok_07" required pattern="[A-Za-z0-9_-]+">
-      </label>
+  <div class="alertbox" id="alert-box">
+    <div id="alert-text">🚨 ALERT DARURAT: Cek kondisi bayi sekarang!</div>
+    <button type="button" id="mute-btn">Matikan Alarm</button>
+  </div>
 
-      <label>MQTT WebSocket URL (WSS)
-        <input id="broker" value="wss://broker.hivemq.com:8884/mqtt" required>
-      </label>
-      <div class="preset-pills">
-        <button type="button" id="presetHivemq">HiveMQ (Default .env)</button>
-        <button type="button" id="presetEmqx">EMQX Public</button>
-      </div>
+  <div class="card">
+    <label>Project ID (sama dengan .env di laptop)</label>
+    <input id="project-id" value="iot_kelompok_07" placeholder="iot_kelompok_07" />
 
-      <label>Sumber Sensor Audio (Microphone / Tangisan Bayi)
-        <select id="audioSource">
-          <option value="mic">Microphone Asli (Web Audio API — Real-time Audio RMS)</option>
-          <option value="manual">Slider Audio Manual (Untuk Tes Tanpa Suara)</option>
-        </select>
-      </label>
+    <label>Peran perangkat</label>
+    <select id="role">
+      <option value="edge1">Edge 1 — Baby node (di dekat bayi)</option>
+      <option value="edge2">Edge 2 — Parent node (HP orang tua)</option>
+    </select>
 
-      <div>
-        <div class="muted" style="display:flex;justify-content:space-between">
-          <span>Level Amplitudo Audio Saat Ini (audio_rms):</span>
-          <strong id="audioLiveVal">0.000</strong>
-        </div>
-        <div class="meter-bar"><div class="meter-fill" id="audioMeter"></div></div>
-      </div>
+    <label>Sumber audio</label>
+    <select id="audio-src">
+      <option value="mic">Mikrofon asli</option>
+      <option value="sim">Simulasi</option>
+    </select>
+    <div class="meter"><div class="meter-bar" id="audio-bar"></div></div>
 
-      <label id="manualAudioWrap" hidden>Slider Uji Audio RMS: <span id="audioSliderVal">0.02</span>
-        <input id="audioSlider" type="range" min="0" max="1" step="0.01" value="0.02">
-        <span class="muted">&lt; 0.12 = Tenang (SLEEPING) | &ge; 0.45 = Tangisan Keras (CRYING)</span>
-      </label>
+    <label>Sumber gerak</label>
+    <select id="motion-src">
+      <option value="live">Sensor gerak asli (accelerometer)</option>
+      <option value="sim">Simulasi</option>
+    </select>
 
-      <details style="margin-top:8px" open>
-        <summary class="muted" style="cursor:pointer;font-weight:600">Mode Sumber Sensor / Simulasi Kelas ML (0–3)</summary>
-        <label>Pilih Mode Sensor atau Skenario Kelas Target ML
-          <select id="sensorMode">
-            <option value="physical">Sensor Fisik Asli (Microphone + DeviceMotion IMU)</option>
-            <option value="sim_sleeping">Simulasi Kelas 0: SLEEPING (Gerakan rendah, terlentang ~5°, suara tenang)</option>
-            <option value="sim_restless">Simulasi Kelas 1: RESTLESS (Gerakan sedang &amp; rotasi berulang, suara desah)</option>
-            <option value="sim_crying">Simulasi Kelas 2: CRYING (Suara tangisan keras frekuensi tinggi + gerakan)</option>
-            <option value="sim_prone">Simulasi Kelas 3: PRONE_RISK (Tengkurap curam ~160° melebihi batas aman)</option>
-          </select>
-        </label>
-      </details>
+    <label>Skenario simulasi (jika memakai mode simulasi)</label>
+    <select id="scenario">
+      <option value="sleeping">0: Sleeping (tidur tenang)</option>
+      <option value="restless">1: Restless (gelisah / gerak)</option>
+      <option value="crying">2: Crying (menangis keras)</option>
+      <option value="prone_risk">3: Prone risk (posisi tengkurap)</option>
+    </select>
 
-      <details style="margin-top:8px">
-        <summary class="muted" style="cursor:pointer;font-weight:600">Broker pribadi (opsional)</summary>
-        <label>Username<input id="username" autocomplete="username"></label>
-        <label>Password<input id="password" type="password" autocomplete="off"></label>
-      </details>
+    <button class="btn" id="toggle-btn" type="button">Mulai node</button>
+    <div class="hint" id="hint">Siap dijalankan. Pastikan python detector.py aktif di laptop.</div>
+  </div>
 
-      <div class="btn-row">
-        <button id="start" type="submit">Mulai Jalankan Node</button>
-        <button id="stop" type="button" class="secondary" disabled>Stop</button>
-      </div>
-    </form>
-  </section>
-
-  <section class="card">
-    <div class="status-banner" id="status" role="status">Belum berjalan</div>
-    <div class="status-banner bad" id="alertBanner" hidden>
-      🚨 DARURAT (ML ALERT): <span id="alertReason">Terdeteksi bahaya pada bayi!</span>
-      <div class="btn-row" style="margin-top:8px">
-        <button type="button" id="muteAlarmBtn" class="danger">Matikan Bunyi Alarm</button>
-      </div>
-    </div>
-
-    <dl>
-      <dt>Status Keputusan ML Detector</dt><dd id="detectorStatus">—</dd>
-      <dt>Status Microphone</dt><dd id="micState">Belum aktif</dd>
-      <dt>Sampel window valid</dt><dd id="samples">0</dd>
-      <dt>1. Processing A · motion_rms</dt><dd id="motion">—</dd>
-      <dt>2. Processing A · jerk_metric</dt><dd id="jerk">—</dd>
-      <dt>3. Processing A · tilt_angle</dt><dd id="tilt">—</dd>
-      <dt>4. Processing B · audio_rms</dt><dd id="audioRms">—</dd>
-      <dt>5. Processing B · spectral_centroid_approx</dt><dd id="centroid">—</dd>
-      <dt>6. Processing B · zcr</dt><dd id="zcr">—</dd>
-      <dt>Pesan MQTT terkirim</dt><dd id="sent">0</dd>
-    </dl>
-
-    <h2 style="margin-top:14px">Notifikasi Parent Node (Edge 2)</h2>
-    <p id="alert" class="muted">Belum ada alert darurat.</p>
-  </section>
-
-  <section class="card">
-    <strong>Log Aktivitas</strong>
-    <pre id="log">Menunggu tombol Mulai ditekan...</pre>
-  </section>
+  <div class="card">
+    <label>Status ML Detector &amp; Telemetri (6 Fitur Multimodal)</label>
+    <div class="feat"><span>Status Keputusan ML</span><strong id="m-status">MENUNGGU</strong></div>
+    <div class="feat"><span>Alasan / Detail</span><strong id="m-reason" style="text-align:right;max-width:65%">–</strong></div>
+    <div class="feat"><span>1. Motion RMS (m/s²)</span><strong id="m-motion">–</strong></div>
+    <div class="feat"><span>2. Jerk Metric (m/s³)</span><strong id="m-jerk">–</strong></div>
+    <div class="feat"><span>3. Tilt Angle (°)</span><strong id="m-tilt">–</strong></div>
+    <div class="feat"><span>4. Audio RMS (0–1)</span><strong id="m-audio">–</strong></div>
+    <div class="feat"><span>5. Spectral Centroid (Hz)</span><strong id="m-centroid">–</strong></div>
+    <div class="feat"><span>6. Zero-Crossing Rate</span><strong id="m-zcr">–</strong></div>
+    <div class="feat"><span>Paket Terkirim</span><strong id="m-sent">0</strong></div>
+  </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.1/dist/mqtt.min.js"></script>
 <script>
-"use strict";
-const $ = (id) => document.getElementById(id);
+// Cermin dari shared/processing.py (Python) — 6 fitur multimodal
 const GRAVITY = 9.81;
-const WINDOW_MS = 1500;
-const MIN_SAMPLES = 3;
-const MAX_SAMPLES = 250;
+const DEFAULT_CONFIG = {
+  project_id: "iot_kelompok_07",
+  websocket_url: "wss://broker.hivemq.com:8884/mqtt"
+};
 
-let client = null, active = false, connected = false, samples = [];
-let sequence = 0, bootId = "", lastPublish = 0, simStep = 0;
-let project = "", role = "", simTimer = null, physicalTimer = null;
-let micStream = null, micAudioCtx = null, micAnalyser = null, micTimer = null;
-let currentAudioRms = 0.02;
-let latestAccel = [0.8, 0.5, 9.77], latestGyro = [0, 0, 0], lastMotionEventAt = 0;
-let alarmAudioCtx = null, alarmTimer = null;
-
-function log(message) {
-  const line = new Date().toLocaleTimeString("id-ID") + " — " + message;
-  $("log").textContent = line + "\n" + $("log").textContent.slice(0, 1800);
-}
-
-function status(message, level = "") {
-  const el = $("status");
-  el.textContent = message;
-  el.className = "status-banner" + (level ? " " + level : "");
-}
-
-function finite3(x, y, z) {
-  return [x, y, z].every((n) => typeof n === "number" && Number.isFinite(n));
-}
-
-function normalizeMqttWss(value) {
-  const input = value.trim().replace(/\/+$/, "");
-  const defaults = {
-    "wss://broker.emqx.io": "wss://broker.emqx.io:8084/mqtt",
-    "wss://broker.emqx.io:8084": "wss://broker.emqx.io:8084/mqtt",
-    "wss://broker.hivemq.com": "wss://broker.hivemq.com:8884/mqtt",
-    "wss://broker.hivemq.com:8884": "wss://broker.hivemq.com:8884/mqtt"
-  };
-  return defaults[input.toLowerCase()] || input;
-}
-
-function updateAudioMeter(val) {
-  currentAudioRms = Math.max(0, Math.min(1, val));
-  $("audioLiveVal").textContent = currentAudioRms.toFixed(3);
-  const pct = Math.min(100, Math.round(currentAudioRms * 140));
-  $("audioMeter").style.width = pct + "%";
-  $("audioMeter").style.background = currentAudioRms >= 0.40 ? "#dc2626" : (currentAudioRms >= 0.15 ? "#d97706" : "#1458a8");
-}
-
-$("presetHivemq").addEventListener("click", () => {
-  $("broker").value = "wss://broker.hivemq.com:8884/mqtt";
-});
-$("presetEmqx").addEventListener("click", () => {
-  $("broker").value = "wss://broker.emqx.io:8084/mqtt";
-});
-$("audioSource").addEventListener("change", () => {
-  $("manualAudioWrap").hidden = $("audioSource").value !== "manual";
-  if (active && $("sensorMode").value === "physical") {
-    stopMicrophoneSensor();
-    startMicrophoneSensor();
+function extractFeatures(samples){
+  const n = samples.length;
+  const deviations = [], tilts = [];
+  for(const s of samples){
+    const [ax,ay,az] = s.accel;
+    deviations.push(Math.hypot(ax,ay,az) - GRAVITY);
+    tilts.push(Math.max(0, Math.min(180, Math.atan2(Math.hypot(ax,ay), az) * 180 / Math.PI)));
   }
-});
-$("audioSlider").addEventListener("input", () => {
-  const v = Number($("audioSlider").value);
-  $("audioSliderVal").textContent = v.toFixed(2);
-  updateAudioMeter(v);
-});
-
-// ---------- Alarm Suara + Getar untuk Edge 2 (Parent Node) ----------
-function ensureAlarmAudioContext() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!alarmAudioCtx && AudioCtx) alarmAudioCtx = new AudioCtx();
-    if (alarmAudioCtx && alarmAudioCtx.state === "suspended") alarmAudioCtx.resume();
-  } catch (_) {}
-}
-
-function playBeepPattern() {
-  ensureAlarmAudioContext();
-  if (!alarmAudioCtx) return;
-  const now = alarmAudioCtx.currentTime;
-  const osc = alarmAudioCtx.createOscillator();
-  const gain = alarmAudioCtx.createGain();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(880, now);
-  osc.frequency.setValueAtTime(1174.66, now + 0.18);
-  gain.gain.setValueAtTime(0.25, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-  osc.connect(gain);
-  gain.connect(alarmAudioCtx.destination);
-  osc.start(now);
-  osc.stop(now + 0.4);
-}
-
-function triggerParentAlarm(reason, score) {
-  $("alertBanner").hidden = false;
-  $("alertReason").textContent = `${reason} (Confidence: ${score ?? "?"})`;
-  $("alert").textContent = `🚨 ALERT (${new Date().toLocaleTimeString("id-ID")}): ${reason}`;
-  if (navigator.vibrate) {
-    navigator.vibrate([500, 200, 500, 200, 800]);
-  }
-  playBeepPattern();
-  if (alarmTimer) clearInterval(alarmTimer);
-  let count = 0;
-  alarmTimer = setInterval(() => {
-    if (++count > 6) {
-      clearInterval(alarmTimer);
-      alarmTimer = null;
-      return;
-    }
-    playBeepPattern();
-    if (navigator.vibrate) navigator.vibrate([400, 150, 400]);
-  }, 900);
-}
-
-function stopParentAlarm() {
-  if (alarmTimer) {
-    clearInterval(alarmTimer);
-    alarmTimer = null;
-  }
-  if (navigator.vibrate) navigator.vibrate(0);
-  $("alertBanner").hidden = true;
-}
-$("muteAlarmBtn").addEventListener("click", stopParentAlarm);
-
-// ---------- Sensor Audio Microphone ----------
-async function startMicrophoneSensor() {
-  if ($("audioSource").value === "manual") {
-    $("micState").textContent = "Slider Manual";
-    updateAudioMeter(Number($("audioSlider").value));
-    log("Menggunakan slider audio manual.");
-    return;
-  }
-  try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("getUserMedia membutuhkan HTTPS atau localhost");
-    }
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        video: false,
-      });
-    } catch (_) {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    }
-
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    micAudioCtx = new AudioCtx();
-    if (micAudioCtx.state === "suspended") await micAudioCtx.resume();
-    const source = micAudioCtx.createMediaStreamSource(micStream);
-    micAnalyser = micAudioCtx.createAnalyser();
-    micAnalyser.fftSize = 1024;
-    source.connect(micAnalyser);
-
-    const timeData = new Float32Array(micAnalyser.fftSize);
-    micTimer = setInterval(() => {
-      if (!micAnalyser) return;
-      if (micAudioCtx && micAudioCtx.state === "suspended") {
-        micAudioCtx.resume().catch(() => {});
-      }
-      micAnalyser.getFloatTimeDomainData(timeData);
-      let sumSq = 0;
-      for (let i = 0; i < timeData.length; i++) sumSq += timeData[i] * timeData[i];
-      const rawRms = Math.sqrt(sumSq / timeData.length);
-      updateAudioMeter(Math.min(1.0, rawRms * 3.5));
-    }, 100);
-
-    $("micState").textContent = "Aktif (Real-time Mic)";
-    log("Microphone aktif: mengukur Audio RMS secara real-time.");
-  } catch (err) {
-    $("micState").textContent = "Fallback Slider (" + err.message + ")";
-    log("Microphone tidak dapat diakses (" + err.message + "). Beralih ke Slider Audio Manual.");
-    $("audioSource").value = "manual";
-    $("manualAudioWrap").hidden = false;
-    updateAudioMeter(Number($("audioSlider").value));
-  }
-}
-
-function stopMicrophoneSensor() {
-  if (micTimer) { clearInterval(micTimer); micTimer = null; }
-  if (micStream) { micStream.getTracks().forEach((t) => t.stop()); micStream = null; }
-  micAnalyser = null;
-  if (micAudioCtx) { micAudioCtx.close().catch(() => {}); micAudioCtx = null; }
-  $("micState").textContent = "Berhenti";
-}
-
-// ---------- 6-Feature Multimodal Extraction (Identik dengan shared/processing.py) ----------
-function extractFeatures(windowSamples) {
-  const n = windowSamples.length;
-  let devSqSum = 0;
-  let tiltSum = 0;
+  const motion_rms = Math.sqrt(deviations.reduce((a,d)=>a+d*d,0) / n);
+  const tilt_angle = tilts.reduce((a,t)=>a+t,0) / n;
   let jerkSum = 0;
-  let jerkCount = 0;
-  const levels = [];
-
-  for (let i = 0; i < n; i++) {
-    const s = windowSamples[i];
-    const [ax, ay, az] = s.accel;
-    const mag = Math.hypot(ax, ay, az);
-    devSqSum += (mag - GRAVITY) ** 2;
-
-    const horizontal = Math.hypot(ax, ay);
-    const tiltDeg = Math.max(0, Math.min(180, Math.atan2(horizontal, az) * (180 / Math.PI)));
-    tiltSum += tiltDeg;
-
-    if (i > 0) {
-      const prev = windowSamples[i - 1];
-      const dt = Math.max(0.001, (s.time - prev.time) / 1000);
-      const dax = ax - prev.accel[0];
-      const day = ay - prev.accel[1];
-      const daz = az - prev.accel[2];
-      jerkSum += Math.hypot(dax, day, daz) / dt;
-      jerkCount++;
-    }
-    levels.push(Math.max(0, Number(s.audio ?? 0)));
+  for(let i=1;i<n;i++){
+    const dt = Math.max(1e-3, samples[i].t - samples[i-1].t);
+    const d = samples[i].accel.map((c,j)=>c - samples[i-1].accel[j]);
+    jerkSum += Math.hypot(...d) / dt;
   }
+  const jerk_metric = jerkSum / (n - 1);
 
-  const motion_rms = Math.sqrt(devSqSum / n);
-  const tilt_angle = tiltSum / n;
-  const jerk_metric = jerkCount > 0 ? jerkSum / jerkCount : 0;
-
-  const audio_rms = Math.sqrt(levels.reduce((acc, v) => acc + v * v, 0) / n);
-  const meanLevel = levels.reduce((acc, v) => acc + v, 0) / n;
-  const centered = levels.map((v) => v - meanLevel);
-  const stdDev = Math.sqrt(centered.reduce((acc, c) => acc + c * c, 0) / n);
-
-  let diffSum = 0;
-  let crossings = 0;
-  for (let i = 1; i < n; i++) {
-    diffSum += Math.abs(levels[i] - levels[i - 1]);
-    if ((centered[i - 1] >= 0) !== (centered[i] >= 0)) crossings++;
+  const levels = samples.map(s=>Math.max(0, s.audio));
+  const audio_rms = Math.sqrt(levels.reduce((a,l)=>a+l*l,0) / n);
+  const mean = levels.reduce((a,l)=>a+l,0) / n;
+  const centered = levels.map(l=>l - mean);
+  const std = Math.sqrt(centered.reduce((a,c)=>a+c*c,0) / n);
+  let diffSum = 0, crossings = 0;
+  for(let i=1;i<n;i++){
+    diffSum += Math.abs(levels[i] - levels[i-1]);
+    if((centered[i] >= 0) !== (centered[i-1] >= 0)) crossings++;
   }
-  const meanDiff = diffSum / Math.max(1, n - 1);
-  const rawZcr = crossings / Math.max(1, n - 1);
-
-  const zcr = Math.min(1.0, Math.max(0.01, 0.4 * rawZcr * Math.min(1.0, audio_rms * 1.5) + 0.75 * audio_rms + 0.4 * stdDev));
+  const mean_diff = diffSum / (n - 1);
+  const raw_zcr = crossings / (n - 1);
+  const zcr = Math.min(1, Math.max(0.01, 0.4 * raw_zcr * Math.min(1, audio_rms * 1.5) + 0.75 * audio_rms + 0.4 * std));
   const spectral_centroid_approx = Math.min(
-    4400.0,
-    Math.max(150.0, 240.0 + 3800.0 * audio_rms + 1500.0 * stdDev + 900.0 * meanDiff + 600.0 * zcr)
+    4400,
+    Math.max(150, 240 + 3800 * audio_rms + 1500 * std + 900 * mean_diff + 600 * zcr)
   );
 
   return {
-    motion_rms: Number(motion_rms.toFixed(4)),
-    jerk_metric: Number(jerk_metric.toFixed(4)),
-    tilt_angle: Number(tilt_angle.toFixed(2)),
-    audio_rms: Number(audio_rms.toFixed(4)),
-    spectral_centroid_approx: Number(spectral_centroid_approx.toFixed(2)),
-    zcr: Number(zcr.toFixed(4)),
+    motion_rms: +motion_rms.toFixed(4),
+    jerk_metric: +jerk_metric.toFixed(4),
+    tilt_angle: +tilt_angle.toFixed(2),
+    audio_rms: +audio_rms.toFixed(4),
+    spectral_centroid_approx: +spectral_centroid_approx.toFixed(2),
+    zcr: +zcr.toFixed(4)
   };
 }
 
-function pushAndProcessSample(accel, gyro, audioLevel) {
-  const now = performance.now();
-  samples.push({ time: now, accel, gyro, audio: audioLevel });
-  $("samples").textContent = String(Number($("samples").textContent) + 1);
-  if (samples.length > MAX_SAMPLES) samples.shift();
-  if (now - lastPublish < WINDOW_MS || samples.length < MIN_SAMPLES) return;
-
-  const f = extractFeatures(samples);
-  $("motion").textContent = f.motion_rms.toFixed(3) + " m/s²";
-  $("jerk").textContent = f.jerk_metric.toFixed(2) + " m/s³";
-  $("tilt").textContent = f.tilt_angle.toFixed(1) + "°";
-  $("audioRms").textContent = f.audio_rms.toFixed(3);
-  $("centroid").textContent = f.spectral_centroid_approx.toFixed(0) + " Hz";
-  $("zcr").textContent = f.zcr.toFixed(3);
-  lastPublish = now;
-  samples = [];
-
-  if (!connected || !client) return;
-  const payload = {
-    device_id: role,
-    boot_id: bootId,
-    sequence: sequence++,
-    sent_at_ms: Date.now(),
-    ...f,
+// Skenario simulasi (cermin shared/sensors.py)
+function simSample(scenario, t, step, rng){
+  const n = (s)=> (rng()*2 - 1) * s;
+  const alt = step % 2 === 0 ? 1 : -1;
+  if(scenario === 'crying'){
+    return {
+      accel: [1.8*Math.sin(6.5*t)+n(.12), 1.4*Math.cos(5.5*t)+n(.12), 9.2+1.9*Math.cos(5*t)+n(.12)],
+      audio: Math.max(.35, Math.min(1, .64 + .14*alt + n(.03)))
+    };
+  }
+  if(scenario === 'restless'){
+    return {
+      accel: [3.2*Math.sin(3.2*t)+n(.08), 2.5*Math.cos(2.8*t)+n(.08), 8.8+.95*Math.cos(3.5*t)+n(.08)],
+      audio: Math.max(.02, Math.min(.18, .08 + .025*alt + n(.01)))
+    };
+  }
+  if(scenario === 'prone_risk'){
+    return {
+      accel: [2.8+n(.05), 1.5+n(.05), -9.25+n(.05)],
+      audio: Math.max(.005, Math.min(.12, .035 + .01*alt + n(.005)))
+    };
+  }
+  return {
+    accel: [.8+n(.03), .5+n(.03), 9.77+n(.03)],
+    audio: Math.max(.005, Math.min(.08, .022 + .006*alt + n(.004)))
   };
-  const targetTopic = `pocketguard/${project}/edge/${role}/telemetry`;
-  client.publish(targetTopic, JSON.stringify(payload), { qos: 1 }, (error) => {
-    if (error) log("MQTT publish gagal: " + error.message);
-    else $("sent").textContent = String(Number($("sent").textContent) + 1);
-  });
 }
 
-function onMotion(event) {
-  if (!active || $("sensorMode").value !== "physical") return;
-  const a = event.accelerationIncludingGravity || event.acceleration;
-  const r = event.rotationRate;
-  if (a && finite3(a.x, a.y, a.z)) {
-    latestAccel = [a.x, a.y, a.z];
-    lastMotionEventAt = performance.now();
-  }
-  if (r && finite3(r.alpha, r.beta, r.gamma)) {
-    const RAD = Math.PI / 180;
-    latestGyro = [r.alpha * RAD, r.beta * RAD, r.gamma * RAD];
+let running = false, client = null, sampleTimer = null, sent = 0, seq = 0, bootId = '';
+let micAudio = null, micCtx = null, analyser = null, fftBuf = null;
+let lastMotion = null, lastMotionAt = 0;
+let alarmCtx = null, alarmTimer = null;
+const $ = id => document.getElementById(id);
+const hint = (m, cls='') => { const h=$('hint'); h.textContent=m; h.className='hint '+cls; };
+const setBadge = (m, cls='') => { const b=$('mqtt-badge'); b.textContent=m; b.className='badge '+cls; };
+
+if(location.protocol !== 'https:' && !['localhost','127.0.0.1'].includes(location.hostname)){
+  $('https-warn').style.display = 'block';
+}
+
+// Alarm suara & getar saat ALERT diterima
+function playAlarmBeep(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!alarmCtx && Ctx) alarmCtx = new Ctx();
+    if(alarmCtx && alarmCtx.state === 'suspended') alarmCtx.resume();
+    if(!alarmCtx) return;
+    const now = alarmCtx.currentTime;
+    const osc = alarmCtx.createOscillator();
+    const gain = alarmCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1174.66, now + 0.16);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain);
+    gain.connect(alarmCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.36);
+  }catch(_){}
+}
+
+function triggerAlarm(reason, score){
+  $('alert-box').style.display = 'block';
+  $('alert-text').textContent = `🚨 ALERT (${score ?? '?'}): ${reason}`;
+  if(navigator.vibrate) navigator.vibrate([450, 150, 450, 150, 700]);
+  playAlarmBeep();
+  if(alarmTimer) clearInterval(alarmTimer);
+  let count = 0;
+  alarmTimer = setInterval(()=>{
+    if(++count > 5){ clearInterval(alarmTimer); alarmTimer = null; return; }
+    playAlarmBeep();
+    if(navigator.vibrate) navigator.vibrate([400, 150, 400]);
+  }, 850);
+}
+
+function stopAlarm(){
+  if(alarmTimer){ clearInterval(alarmTimer); alarmTimer = null; }
+  if(navigator.vibrate) navigator.vibrate(0);
+  $('alert-box').style.display = 'none';
+}
+$('mute-btn').onclick = stopAlarm;
+
+async function startMic(){
+  try{
+    micAudio = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    }).catch(()=> navigator.mediaDevices.getUserMedia({ audio: true }));
+    micCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(micCtx.state === 'suspended') await micCtx.resume();
+    analyser = micCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    micCtx.createMediaStreamSource(micAudio).connect(analyser);
+    fftBuf = new Float32Array(analyser.fftSize);
+    hint('Mikrofon aktif (real-time audio)', 'ok');
+  }catch(e){
+    hint('Izin mikrofon ditolak / tidak tersedia — memakai audio simulasi', 'warn');
+    micAudio = null;
+    analyser = null;
   }
 }
 
-function startPhysicalSampler() {
-  latestAccel = [0.8, 0.5, 9.77];
-  latestGyro = [0, 0, 0];
-  lastMotionEventAt = 0;
-  physicalTimer = setInterval(() => {
-    if (!active || $("sensorMode").value !== "physical") return;
-    if (performance.now() - lastMotionEventAt > 600) {
-      const n = () => (Math.random() - 0.5) * 0.04;
-      latestAccel = [0.8 + n(), 0.5 + n(), 9.77 + n()];
+function micLevel(){
+  if(!analyser) return null;
+  if(micCtx && micCtx.state === 'suspended') micCtx.resume().catch(()=>{});
+  analyser.getFloatTimeDomainData(fftBuf);
+  let sum = 0;
+  for(let i=0;i<fftBuf.length;i++) sum += fftBuf[i] * fftBuf[i];
+  return Math.min(1, Math.sqrt(sum / fftBuf.length) * 3.5);
+}
+
+function onMotionEvent(e){
+  const a = e.accelerationIncludingGravity || e.acceleration;
+  if(a && typeof a.x === 'number' && Number.isFinite(a.x)){
+    lastMotion = [a.x, a.y, a.z];
+    lastMotionAt = performance.now();
+  }
+}
+
+async function startMotion(){
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+    try{
+      const state = await DeviceMotionEvent.requestPermission();
+      if(state === 'granted') window.addEventListener('devicemotion', onMotionEvent);
+      else hint('Izin sensor gerak ditolak — memakai gerak default', 'warn');
+    }catch(_){
+      hint('Sensor gerak tidak tersedia — memakai gerak default', 'warn');
     }
-    const jitter = 1 + (Math.random() - 0.5) * 0.16;
-    pushAndProcessSample(latestAccel, latestGyro, Math.max(0.005, currentAudioRms * jitter));
-  }, 250);
+  } else if(typeof DeviceMotionEvent !== 'undefined'){
+    window.addEventListener('devicemotion', onMotionEvent);
+  }
 }
 
-// ---------- Simulasi 4 Kelas Target ML (Identik dengan shared/sensors.py) ----------
-function startBrowserSimulation(simMode) {
-  const startTime = performance.now();
-  simStep = 0;
-  simTimer = setInterval(() => {
-    if (!active) return;
-    simStep++;
-    const t = (performance.now() - startTime) / 1000;
-    const noise = (scale) => (Math.random() - 0.5) * 2 * scale;
-    const alt = simStep % 2 === 0 ? 1.0 : -1.0;
+// Ambil konfigurasi dari /config.json (jika lokal), atau fallback ke DEFAULT_CONFIG (jika di Netlify)
+async function loadConfig(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('role') === 'edge1' || params.get('role') === 'edge2'){
+    $('role').value = params.get('role');
+  }
+  try{
+    const res = await fetch('/config.json', { cache: 'no-store' });
+    if(res.ok){
+      const cfg = await res.json();
+      if(cfg.project_id) DEFAULT_CONFIG.project_id = cfg.project_id;
+      if(cfg.websocket_url) DEFAULT_CONFIG.websocket_url = cfg.websocket_url;
+    }
+  }catch(_){
+    // Berjalan di Netlify / static hosting tanpa endpoint /config.json
+  }
+  if(params.get('project')) DEFAULT_CONFIG.project_id = params.get('project');
+  $('project-id').value = DEFAULT_CONFIG.project_id;
+}
 
-    let accel, gyro, audio;
-    if (simMode === "sim_crying") {
-      accel = [1.8 * Math.sin(6.5 * t) + noise(0.12), 1.4 * Math.cos(5.5 * t) + noise(0.12), 9.2 + 1.9 * Math.cos(5.0 * t) + noise(0.12)];
-      gyro = [0.75, 0.42, 0.30];
-      audio = Math.max(0.35, Math.min(1.0, 0.64 + 0.14 * alt + noise(0.03)));
-    } else if (simMode === "sim_restless") {
-      accel = [3.2 * Math.sin(3.2 * t) + noise(0.08), 2.5 * Math.cos(2.8 * t) + noise(0.08), 8.8 + 0.95 * Math.cos(3.5 * t) + noise(0.08)];
-      gyro = [0.35, 0.22, 0.15];
-      audio = Math.max(0.02, Math.min(0.18, 0.08 + 0.025 * alt + noise(0.01)));
-    } else if (simMode === "sim_prone") {
-      accel = [2.8 + noise(0.05), 1.5 + noise(0.05), -9.25 + noise(0.05)];
-      gyro = [noise(0.015), noise(0.015), noise(0.015)];
-      audio = Math.max(0.005, Math.min(0.12, 0.035 + 0.01 * alt + noise(0.005)));
-    } else {
-      accel = [0.8 + noise(0.03), 0.5 + noise(0.03), 9.77 + noise(0.03)];
-      gyro = [noise(0.01), noise(0.01), noise(0.01)];
-      audio = Math.max(0.005, Math.min(0.08, 0.022 + 0.006 * alt + noise(0.004)));
+function init(){
+  loadConfig();
+  const btn = $('toggle-btn');
+
+  btn.onclick = async () => {
+    if(running){ stop(); return; }
+
+    const projectId = ($('project-id').value || DEFAULT_CONFIG.project_id).trim();
+    if(!/^[A-Za-z0-9_-]+$/.test(projectId)){
+      hint('PROJECT_ID hanya boleh huruf, angka, _ atau -', 'bad');
+      return;
     }
 
-    updateAudioMeter(audio);
-    pushAndProcessSample(accel, gyro, audio);
-  }, 250);
-}
+    // Siapkan AudioContext untuk alarm (perlu gesture klik user)
+    try{
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!alarmCtx && Ctx) alarmCtx = new Ctx();
+    }catch(_){}
 
-function stop() {
-  active = false;
-  connected = false;
-  window.removeEventListener("devicemotion", onMotion);
-  stopMicrophoneSensor();
-  stopParentAlarm();
-  if (physicalTimer !== null) { clearInterval(physicalTimer); physicalTimer = null; }
-  if (simTimer !== null) { clearInterval(simTimer); simTimer = null; }
-  if (client) { client.end(true); client = null; }
-  $("start").disabled = false;
-  $("stop").disabled = true;
-  status("Berhenti");
-}
+    const role = $('role').value;
+    const audioSrc = $('audio-src').value;
+    const motionSrc = $('motion-src').value;
+    const ns = `pocketguard/${projectId}`;
+    bootId = (crypto.randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(16).slice(2, 12));
 
-async function start(event) {
-  event.preventDefault();
-  if (active) return;
+    if(audioSrc === 'mic') await startMic();
+    if(motionSrc === 'live') await startMotion();
 
-  ensureAlarmAudioContext();
-  const sensorMode = $("sensorMode").value;
+    setBadge('Menghubungkan...', 'warn');
+    client = mqtt.connect(DEFAULT_CONFIG.websocket_url, {
+      clientId: `${projectId}-${role}-web-${bootId}`,
+      reconnectPeriod: 3000,
+      connectTimeout: 10000
+    });
 
-  if (typeof mqtt === "undefined") {
-    status("Library MQTT.js gagal dimuat. Periksa koneksi internet.", "bad");
-    return;
-  }
+    client.on('connect', ()=>{
+      setBadge('MQTT Terhubung', 'ok');
+      hint(`Terhubung ke ${ns} sebagai ${role}`, 'ok');
+      client.subscribe([`${ns}/status`, `${ns}/alerts`], { qos: 1 });
+    });
 
-  role = $("role").value;
-  project = $("project").value.trim();
-  const broker = normalizeMqttWss($("broker").value.trim());
-  $("broker").value = broker;
+    client.on('offline', ()=> setBadge('Terputus', 'warn'));
+    client.on('error', err => hint('MQTT Error: ' + err.message, 'bad'));
 
-  if (!/^[A-Za-z0-9_-]+$/.test(project) || !/^wss?:\/\//.test(broker)) {
-    status("PROJECT_ID tidak valid atau URL broker harus diawali wss://", "bad");
-    return;
-  }
+    client.on('message', (t, p)=>{
+      try{
+        const d = JSON.parse(p.toString());
+        if(t === `${ns}/status`){
+          $('m-status').textContent = d.status || '–';
+          $('m-reason').textContent = d.reason || '–';
+          if(d.status && d.status !== 'ALERT') $('alert-box').style.display = 'none';
+        } else if(t === `${ns}/alerts`){
+          triggerAlarm(d.reason || 'Bahaya pada bayi terdeteksi!', d.risk_score);
+        }
+      }catch(_){}
+    });
 
-  if (sensorMode === "physical" && typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
-    try { await DeviceMotionEvent.requestPermission(); } catch (err) { log("Info izin gerak iOS: " + err.message); }
-  }
+    running = true;
+    sent = 0;
+    seq = 0;
+    btn.textContent = 'Berhenti';
+    btn.classList.add('stop');
 
-  active = true;
-  connected = false;
-  samples = [];
-  sequence = 0;
-  bootId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(16).slice(2));
-  lastPublish = performance.now();
-  $("samples").textContent = "0";
-  $("sent").textContent = "0";
-  $("motion").textContent = "—";
-  $("jerk").textContent = "—";
-  $("tilt").textContent = "—";
-  $("audioRms").textContent = "—";
-  $("centroid").textContent = "—";
-  $("zcr").textContent = "—";
-  $("detectorStatus").textContent = "Menunggu...";
-  $("start").disabled = true;
-  $("stop").disabled = false;
+    const t0 = performance.now();
+    let step = 0;
+    let windowBuffer = [];
 
-  if (sensorMode === "physical") {
-    await startMicrophoneSensor();
-    if (typeof DeviceMotionEvent !== "undefined") window.addEventListener("devicemotion", onMotion);
-    startPhysicalSampler();
-  } else {
-    $("micState").textContent = "Simulasi ML Online";
-    startBrowserSimulation(sensorMode);
-  }
+    // Ambil 1 sampel tiap 150 ms; setiap 6 sampel (~900 ms) ekstrak fitur & kirim ke MQTT
+    sampleTimer = setInterval(()=>{
+      step++;
+      const t = (performance.now() - t0) / 1000;
+      const currentScenario = $('scenario').value;
+      const currentAudioSrc = $('audio-src').value;
+      const currentMotionSrc = $('motion-src').value;
+      const sim = simSample(currentScenario, t, step, Math.random);
 
-  const namespace = `pocketguard/${project}`;
-  client = mqtt.connect(broker, {
-    clientId: `${project}-${role}-web-${bootId.slice(0, 8)}`,
-    username: $("username").value || undefined,
-    password: $("password").value || undefined,
-    reconnectPeriod: 3000,
-    connectTimeout: 10000,
-  });
+      const liveAudio = currentAudioSrc === 'mic' ? micLevel() : null;
+      const audio = liveAudio !== null ? liveAudio : sim.audio;
 
-  client.on("connect", () => {
-    connected = true;
-    const roleName = role === "edge1" ? "Baby Node (Edge 1)" : "Parent Node (Edge 2)";
-    status(`Aktif · MQTT Terhubung sebagai ${roleName}`, "ok");
-    log(`Terhubung ke ${broker}. Publish 6 fitur ke ${namespace}/edge/${role}/telemetry`);
-    client.subscribe([`${namespace}/status`, `${namespace}/alerts`], { qos: 1 });
-  });
+      const hasFreshMotion = currentMotionSrc === 'live' && lastMotion && (performance.now() - lastMotionAt < 1000);
+      const idleAccel = [0.8 + (Math.random() - 0.5)*0.04, 0.5 + (Math.random() - 0.5)*0.04, 9.77 + (Math.random() - 0.5)*0.04];
+      const accel = currentMotionSrc === 'live' ? (hasFreshMotion ? lastMotion : idleAccel) : sim.accel;
 
-  client.on("offline", () => {
-    connected = false;
-    status("Koneksi MQTT terputus, menyambung ulang...", "warn");
-  });
+      // Update visual bar audio
+      const pct = Math.min(100, Math.round(audio * 130));
+      $('audio-bar').style.width = pct + '%';
+      $('audio-bar').style.background = audio >= 0.30 ? 'var(--bad)' : 'var(--cyan)';
 
-  client.on("error", (error) => {
-    status("MQTT error: " + error.message, "bad");
-    log(error.message);
-  });
+      windowBuffer.push({ t, accel, audio });
+      if(windowBuffer.length < 6) return;
 
-  client.on("message", (topic, payload) => {
-    let data;
-    try { data = JSON.parse(payload.toString()); } catch (_) { return; }
-    if (!data || typeof data !== "object") return;
+      const f = extractFeatures(windowBuffer);
+      windowBuffer = [];
 
-    if (topic === `${namespace}/status`) {
-      $("detectorStatus").textContent = `${data.status || "?"} — ${data.reason || ""}`;
-      if (data.status && data.status !== "ALERT") {
-        $("alertBanner").hidden = true;
+      $('m-motion').textContent = f.motion_rms.toFixed(3);
+      $('m-jerk').textContent = f.jerk_metric.toFixed(2);
+      $('m-tilt').textContent = f.tilt_angle.toFixed(1) + '°';
+      $('m-audio').textContent = f.audio_rms.toFixed(3);
+      $('m-centroid').textContent = Math.round(f.spectral_centroid_approx) + ' Hz';
+      $('m-zcr').textContent = f.zcr.toFixed(3);
+
+      if(client && client.connected){
+        const payload = {
+          device_id: $('role').value,
+          boot_id: bootId,
+          sequence: seq++,
+          sent_at_ms: Date.now(),
+          ...f
+        };
+        client.publish(`${ns}/edge/${payload.device_id}/telemetry`, JSON.stringify(payload), { qos: 1 }, err => {
+          if(!err) $('m-sent').textContent = ++sent;
+        });
       }
-    } else if (topic === `${namespace}/alerts`) {
-      const reason = String(data.reason || "Bahaya terdeteksi oleh ML Detector!");
-      if (role === "edge2") {
-        triggerParentAlarm(reason, data.risk_score);
-        log("🚨 ALERT DARURAT diterima dari BabyGuardianMLDetector!");
-      } else {
-        $("alert").textContent = "ALERT terkirim ke HP Orang Tua: " + reason;
-      }
-    }
-  });
-}
+    }, 150);
+  };
 
-$("setup").addEventListener("submit", start);
-$("stop").addEventListener("click", stop);
-$("sensorMode").addEventListener("change", () => {
-  if (active) {
-    stop();
-    $("setup").requestSubmit();
+  function stop(){
+    running = false;
+    if(sampleTimer){ clearInterval(sampleTimer); sampleTimer = null; }
+    window.removeEventListener('devicemotion', onMotionEvent);
+    stopAlarm();
+    if(client){ client.end(true); client = null; }
+    if(micAudio){ micAudio.getTracks().forEach(t=>t.stop()); micAudio = null; analyser = null; }
+    if(micCtx){ micCtx.close().catch(()=>{}); micCtx = null; }
+    $('audio-bar').style.width = '0%';
+    btn.textContent = 'Mulai node';
+    btn.classList.remove('stop');
+    setBadge('Offline');
+    hint('Node berhenti');
   }
-});
-
-const params = new URLSearchParams(location.search);
-if (/^[A-Za-z0-9_-]+$/.test(params.get("project") || "")) $("project").value = params.get("project");
-if (["edge1", "edge2"].includes(params.get("role"))) $("role").value = params.get("role");
-
-async function loadLocalServerConfig() {
-  try {
-    const res = await fetch("/config.json", { cache: "no-store" });
-    if (!res.ok) return;
-    const cfg = await res.json();
-    if (cfg.project_id && !params.get("project")) $("project").value = cfg.project_id;
-    if (cfg.websocket_url) $("broker").value = cfg.websocket_url;
-    log(`Konfigurasi otomatis dimuat: PROJECT_ID=${cfg.project_id}`);
-  } catch (_) {}
 }
-loadLocalServerConfig();
-window.addEventListener("pagehide", stop);
+
+init();
 </script>
 </body>
 </html>
